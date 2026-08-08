@@ -7,7 +7,7 @@ Status date: **2026-08-08**
 | Evidence class | Result | What it proves |
 |---|---|---|
 | Structural lint | **PASS**: 7 libraries, 21 decks | Includes exist; braces/continuations are balanced; subcircuits close; calls resolve; top-level decks have one `.END` |
-| Independent arithmetic | **PASS**: 15 named relationship groups | Nominal power-stage relationships plus adaptive-law direction, trim polarity, held-request inhibit gating/lockout, and complementary scheduler boundary behavior are internally consistent |
+| Independent arithmetic/structure | **PASS**: 20 named relationship groups | Nominal relationships plus controller invariants, finite-input rejection, all 28 supported generated phase/scheduler/timing configurations, disable observability, and checked-artifact reproducibility are internally consistent |
 | Manual syntax-oriented review | **Completed** against Cadence ABM documentation | The chosen element classes and expression patterns are PSpice-oriented; it cannot prove parser acceptance or runtime behavior |
 | Cadence PSpice A/D execution | **NOT RUN** | No PSpice executable or license is available in this build environment |
 | Alternative-SPICE execution | **NOT RUN** | `ngspice`, Xyce, LTspice/Wine, and other SPICE executables were not installed |
@@ -59,7 +59,12 @@ PASS scheduler below complementary sum at 5-V logic: 5
 PASS scheduler above G1 at 5-V logic: 0
 PASS scheduler above G2 at 5-V logic: 5
 PASS scheduler above complementary sum at 5-V logic: 5
-Analytical checks: PASS (15 relationship groups; no circuit simulator invoked)
+PASS cumulative N-phase generator matrix: 2..8 phases, 28 configurations
+PASS generator rejects NaN/Infinity numeric inputs
+PASS generator disable/zero-command observability and permit-gap validation
+PASS checked eight-phase cumulative capstone reproducibility
+PASS generated body-diode offset and N-phase balance-cell structure
+Analytical checks: PASS (20 relationship groups; no circuit simulator invoked)
 ```
 
 ## File-by-file matrix
@@ -70,12 +75,12 @@ simulator actually executes the file.
 
 | File | Intended simulator | Syntax review | Alternative SPICE | Cadence PSpice | Principal compatibility risk / remaining work |
 |---|---|---|---|---|---|
-| `lib/BUCK_PHASE.lib` | PSpice A/D | Reviewed | Not run | Not run | Verify `I(VILSENSE)` visibility, parameterized ABM E source, and enable-wrapper gate transitions |
+| `lib/BUCK_PHASE.lib` | PSpice A/D | Reviewed | Not run | Not run | Verify `I(VILSENSE)` visibility, zero/finite `VBDROP` series-source behavior, body-diode convergence, and enable-wrapper gate transitions |
 | `lib/COT_ONESHOT.lib` | PSpice A/D | Reviewed | Not run | Not run | Hard `IF` transitions, inhibit/ready timer-gate ordering, timer convergence, `LIMIT`; dynamic command is continuous rather than sampled at pulse start |
 | `lib/COT_CONTROLLER.lib` | PSpice A/D | Reviewed | Not run | Not run | Stateful hysteresis feedback, `TANH`, feedback/limit first-order delay initialization, nested parameter functions |
 | `lib/PEAK_CURRENT_CONTROLLER.lib` | PSpice A/D | Reviewed | Not run | Not run | Multiplied logic levels and blanking transition interpolation |
 | `lib/PHASE_SCHEDULER.lib` | PSpice A/D | Reviewed | Not run | Not run | ABM multiplication and hard `IF` current boundary; current-priority tie goes to phase 1; round-robin token must be externally advanced |
-| `lib/CURRENT_BALANCE.lib` | PSpice A/D | Reviewed | Not run | Not run | Parameter expression in R value; loop stability depends on caller |
+| `lib/CURRENT_BALANCE.lib` | PSpice A/D | Reviewed | Not run | Not run | Parameter expression in R value; generated N-cell active-weighted reference is caller-formed; loop stability and phase-add transfer depend on the assembled system |
 | `lib/PHASE_SHEDDING.lib` | PSpice A/D | Reviewed | Not run | Not run | Behavioral current-source sign and diode-clamped state at thresholds |
 | `testbenches/averaged_buck.cir` | PSpice A/D | Reviewed | Not run | Not run | Validate averaged ABM and `.MEAS` syntax; check initialized operating point |
 | `testbenches/switched_buck.cir` | PSpice A/D | Reviewed | Not run | Not run | Confirm transient startup, rise-count measurement, and body-diode convergence |
@@ -97,10 +102,10 @@ simulator actually executes the file.
 | `testbenches/scheduler_current_priority_boundary.cir` | PSpice A/D | Reviewed | Not run | Not run | Verify exact/below/above bias boundary yields one full-scale complementary grant after request edges settle |
 | `testbenches/phase_shedding.cir` | PSpice A/D | Reviewed | Not run | Not run | Verify re-entry state, both FETs off while shed, no partial pulse, and no simultaneous high/low drive |
 | `testbenches/capstone.cir` | PSpice A/D | Reviewed | Not run | Not run | Highest interaction/convergence risk; verify shed-phase safe state, then validate only after every prerequisite deck |
-| `validation/generated-8phase-example.cir` | PSpice A/D | Reviewed | Not run | Not run | Eight-phase runtime and memory cost; generated fixed windows only |
-| `scripts/generate_multiphase.py` | Python 3 | Executed for 8 phases | N/A | N/A | Generated circuit still requires PSpice; free-running mode intentionally collides |
+| `validation/generated-8phase-example.cir` | PSpice A/D | Reviewed; generator-current | Not run | Not run | Eight-phase nonlinear runtime/memory cost; active-count/reference discontinuity on phase add/shed; synchronous low-side may turn on before first re-entry grant; fixed-window requests have no stored queue; cumulative interactions remain unexecuted |
+| `scripts/generate_multiphase.py` | Python 3 | Executed for all 28 phase/scheduler/timing combinations plus disable case | N/A | N/A | Text generation is tested, not PSpice semantics; free-running mode intentionally collides; local `timing-mismatch` and separate permit-slot skew have different meanings |
 | `scripts/netlist_lint.py` | Python 3 | Executed, pass | N/A | N/A | Structural grammar only, no expression parsing or dimensional analysis |
-| `scripts/analytical_checks.py` | Python 3 | Executed, pass | N/A | N/A | Nominal arithmetic only, not transient simulation |
+| `scripts/analytical_checks.py` | Python 3 | Executed, pass | N/A | N/A | Arithmetic and generated-text contracts only, not a transient solution or PSpice parser |
 | `scripts/run_all_pspice.bat` | Windows + PSpice | Reviewed | N/A | Not run | `psp_cmd.exe` name/PATH behavior can vary by release; inspect every `.out` file |
 
 ## Manual review checklist completed
@@ -112,7 +117,9 @@ simulator actually executes the file.
 - Capacitor-current monitors use output-node KCL and include every explicit
   load branch (the capstone includes its bleed current).
 - High-side and low-side body-diode orientations match the documented current
-  sign during dead time and reverse current.
+  sign during dead time and reverse current; generated `VBDROP` has the same
+  current-direction polarity on both diode paths and is disclosed as an added
+  offset, not total forward voltage.
 - Shed-phase decks use an enable-aware driver that forces both FETs off; a low
   PWM command is not misused as a synchronous-phase disable.
 - Minimum on-time, maximum on-time, minimum off-time, and current-limit inputs
@@ -130,6 +137,17 @@ simulator actually executes the file.
   complement; phase 1 owns the exact `I1-I2=TIEBIAS` boundary.
 - Current-balance bandwidth is below switching frequency and its trim polarity
   is checked independently.
+- Generated 2–8-phase cases form the current-sharing reference from only active
+  phases, retain sharing-error observation when balance actuation is disabled,
+  gate both FET commands on startup/shed, expose requested/granted/denied
+  timing, and use a 2 ns default maximum step. Timing mismatch scales local
+  comparator, limit, on-time, and dead-time values. Separate permit-slot skew
+  deliberately displaces fixed phase opportunities and is gap-validated.
+- The generated eight-phase fixture exactly matches its checked generator
+  option set, including startup, line/load events, adaptive on-time, limit,
+  balance, phase shedding/re-entry, ripple/ESL, component/sense/local-timing
+  mismatch, and nonzero permit-slot skew. This proves reproducibility only, not
+  circuit execution.
 - Averaged and switched decks are separate.
 - No alternative-SPICE or PSpice success is claimed.
 
@@ -149,8 +167,10 @@ Run in this order and stop at the first unexpected warning:
    cases produce one full-scale complementary grant, never two half grants.
 7. `two_phase_cot.cir`: verify no permit/request collision and correct spacing.
 8. Focused load, line, current-limit, mismatch, and phase-shed decks.
-9. `multiphase_cot.cir`, then the generated eight-phase deck.
-10. `capstone.cir` only after all prior results are understood.
+9. `multiphase_cot.cir`, then the two-phase `capstone.cir` only after all prior
+   results are understood.
+10. The generated eight-phase cumulative capstone last; begin with balance and
+    shedding disabled, then re-enable one interaction at a time.
 
 For each run, record:
 

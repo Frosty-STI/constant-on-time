@@ -32,7 +32,8 @@ Read and run the files in this order:
 | 8 | `testbenches/multiphase_cot.cir` | How do phase currents sum and ripple frequency change? |
 | 9 | `testbenches/mismatch.cir` | What mismatch remains after a slow balance trim? |
 | 10 | `testbenches/phase_shedding.cir` | What happens at shed and re-entry thresholds? |
-| 11 | `testbenches/capstone.cir` | Can you defend every block, state, sign, and limitation? |
+| 11 | `testbenches/capstone.cir` | Can you defend the fixed two-phase integrated interactions? |
+| 12 | `validation/generated-8phase-example.cir` | Does the cumulative generated 2–8-phase architecture preserve and expose every later-stage interaction? |
 
 The focused `oneshot.cir`, `oneshot_inhibit_level_request.cir`,
 `scheduler_current_priority_boundary.cir`, `load_step.cir`, `line_step.cir`,
@@ -85,6 +86,9 @@ ordinary `.AC` analysis linearizes COT event timing.
 - During dead time with positive inductor current, the low-side body diode can
   clamp `SW` below ground. With reverse current, the high-side body diode can
   conduct toward `VIN`.
+- `VBDROP` adds a fixed series offset to both body-diode paths. It is **in
+  addition to**, not a replacement for, the nonlinear `D_BODY_COTLAB` junction
+  voltage, so it must not be interpreted as the total forward drop.
 - Does not include MOSFET capacitance, gate charge, reverse recovery detail,
   nonlinear inductance, saturation, thermal state, layout parasitics, or EMI.
 
@@ -191,6 +195,13 @@ is deliberately far below switching frequency. It is not guaranteed stable
 when inserted into an arbitrary voltage loop; the learner must evaluate the
 combined system.
 
+`CURRENT_BALANCE_CELL ISENSE IREFERENCE ENABLE IAVG TRIM ERROR` is the reusable
+cell used by generated N-phase decks. The generator forms an active-weighted
+average from all `IAVGk` outputs, then each cell compares its filtered sensed
+current with that reference. A positive error gives a positive feedback trim,
+reducing that phase's future pulse demand. Setting generated `KBAL=0` disables
+actuation while retaining `IAVG`, `ISHAREAVG`, and `SHAREERRk` observations.
+
 ### `lib/PHASE_SHEDDING.lib`
 
 `PHASE_SHEDDING_2 ILOAD FORCE_ON ACTIVE2 STATE` integrates a bounded state high
@@ -213,30 +224,82 @@ The second independently checks nominal conversion, slopes, ripple,
 volt-second balance, charge balance, CCM boundary, phase spacing, effective
 ripple frequency, adaptive on-time direction, balance-trim polarity, the
 held-request inhibit gate/lockout regression structure and timing bounds, and
-the current-priority scheduler's exact/near-boundary complementary grants.
+the current-priority scheduler's exact/near-boundary complementary grants. It
+also builds all 28 combinations of 2–8 phase count, fixed/adaptive on-time, and
+fixed-window/free-running scheduling; checks every cumulative block count;
+tests balance/shed disable and zero-commanded-load observability, rejects unsafe
+permit-slot gaps, verifies the body-diode/balance-cell structures, and proves
+that the checked eight-phase deck is generator-current.
 
-## Generate a configurable N-phase deck
+## Generate the configurable 2–8-phase cumulative capstone
 
-The generator supports 2–8 phases, deterministic L/DCR mismatch, and either
-fixed eligibility windows or deliberately free-running requests:
+The generator now carries the ladder's later stages into one inspectable
+2–8-phase deck: fixed or representative adaptive COT, scheduler visibility,
+current limit, active-weighted N-phase current balance, staged phase shedding
+and re-entry, startup gating, line/load steps, ripple injection, output ESL,
+and deterministic component, sensing, and timing mismatch.
 
 ```bash
 python3 pspice/scripts/generate_multiphase.py \
-  --phases 6 \
-  --scheduler fixed-window \
+  --phases 6 --scheduler fixed-window --on-time-law adaptive \
   --vin 12 --vout 5 --frequency 500000 \
-  --load 18 --l-mismatch-pct 1.5 --dcr-mismatch-pct 3 \
+  --load 2 --load-step 16 \
+  --l-mismatch-pct 1.5 --dcr-mismatch-pct 3 \
+  --sense-gain-mismatch-pct 1 --sense-offset-mv 8 \
+  --timing-mismatch-pct 2 --phase-offset-skew-ns 3 \
+  --balance-bandwidth 2000 \
   --output pspice/testbenches/generated_6phase.cir
 ```
 
 The script refuses to overwrite a file unless `--force` is present. A generated
-eight-phase example is preserved at
-`validation/generated-8phase-example.cir`. Generated decks expose phase count,
-input/output target, frequency, load, L, DCR, C, ESR, per-phase current limit,
-window width, mismatch, and scheduler style. Detailed dynamic controller
-parameters remain editable in the resulting plain text. The generated `load`
-value is converted to a passive resistance that draws that current at target
-`VOUT`; it is not a constant-power or constant-current load model.
+eight-phase cumulative example is preserved at
+`validation/generated-8phase-example.cir`; the analytical check regenerates it
+in memory from its exact option set and fails on any difference.
+
+Regenerate that exact checked fixture with:
+
+```bash
+python3 pspice/scripts/generate_multiphase.py \
+  --phases 8 --scheduler fixed-window --on-time-law adaptive \
+  --balance on --phase-shedding on --load 2 --load-step 22 \
+  --l-mismatch-pct 3 --dcr-mismatch-pct 4 \
+  --resistance-mismatch-pct 2 --sense-gain-mismatch-pct 1.5 \
+  --sense-offset-mv 12 --timing-mismatch-pct 2 \
+  --phase-offset-skew-ns 3 --ripple-amplitude .008 \
+  --ripple-phase-degrees 45 --esl 500e-12 \
+  --body-diode-extra-drop .05 --max-step 2e-9 \
+  --output pspice/validation/generated-8phase-example.cir --force
+```
+
+Key controls are explicit rather than hidden in a template:
+
+| Concern | Generator controls | Emitted behavior |
+|---|---|---|
+| Timing law | `--on-time-law`, `--fixed-on-time`, `--ton-min`, `--ton-max`, `--min-off-time` | Fixed `TONBASE` or representative `TPER*VREF/VIN`, followed by per-phase clamp |
+| Scheduling | `--scheduler`, `--window-fraction` | Fixed eligibility windows or intentionally colliding free-running requests; `REQCk`, `REQk`, `DENIEDk`, and `PERMITk` are probed |
+| Startup/events | `--startup-enable`, `--startup-ramp`, load/line step times and values | Explicit `CTRLEN`, reference ramp, delayed load enable, finite load step, and finite line step |
+| Phase shedding | `--phase-shedding`, `--phase-add-step`, `--phase-shed-hysteresis`, `--phase-reentry-ramp` | Phase 1 remains mandatory; phases 2..N use progressively higher add/shed thresholds and both gates are disabled while inactive |
+| Current sharing | `--balance`, `--balance-bandwidth`, `--balance-gain`, `--balance-trim` | Active-weighted sensed-current reference and one bounded low-bandwidth feedback trim per phase |
+| Mismatch | L, DCR, switch-resistance, sense-gain, sense-offset, local timing mismatch, and permit-slot skew controls | Deterministic symmetric outer-phase extremes, recorded numerically in every phase instance; `--timing-mismatch-pct` scales comparator delay, limit delay, dead time, and on-time command, while the separate `--phase-offset-skew-ns` displaces fixed permit slots |
+| Power path | L/DCR/RHS/RLS, C/ESR/ESL, `--body-diode-extra-drop` | Nonideal switched phases and shared output network; diode option adds to junction voltage |
+| Comparator/limit | comparator delay/hysteresis, ripple amplitude/phase, limit/delay | Per-phase request comparator and current-limit abort with explicit first-order delay |
+
+`--load` is a nonnegative baseline ideal-current load in amperes (zero disables
+that commanded ideal-current branch) and `--load-step` is an
+added current, not a resistance, constant-power load, or silently inferred
+value. `LOADEN` ramps only after reference startup so the ideal sink does not
+force current at zero output. Use `--help` for the complete parameter list.
+
+`--load 0 --load-step 0` is **not an exact open-circuit test** because the
+generated `RBLEED` remains connected (100 Ω by default, drawing 50 mA at 5 V).
+Use a deliberately large finite `--bleed-resistance` for a near-no-load study,
+retain it for a well-defined DC path, and disclose the residual current.
+
+The generated fixed windows are an educational allocation policy, not an
+internal clocked round-robin queue. `DENIEDk` shows an ungranted instantaneous
+request; there is no stored request queue. The free-running option is included
+specifically to expose collision and bunching risk, not as a recommended
+multiphase controller.
 
 ## Run in Cadence PSpice A/D
 
@@ -322,11 +385,23 @@ For each switched deck, do not stop at output voltage. Check:
   It is not phase locking, a digital round-robin state machine, or a universal
   COT architecture.
 - The current-sharing block filters monitor signals, not reconstructed DCR
-  current with temperature compensation.
+  current with temperature compensation. The generated N-phase reference
+  changes when an `ACTIVEk` decision changes, and no bumpless-transfer scheme
+  is modeled.
 - The phase-shed block does not model soft-start reference ramping for the
-  returning phase.
+  returning phase. Its state ramps, but the enable-aware gate driver changes
+  state at the digital threshold; it is not a controlled phase-current ramp.
+- On re-entry with `GATEk=0`, that synchronous driver immediately commands the
+  low-side switch. The resulting negative-current possibility is physical for
+  this abstraction, but many applications would add first-pulse arming or
+  diode emulation. Neither is silently assumed here; inspect `IMONk` and extend
+  the policy if reverse current is prohibited.
+- Generated shedding decisions use the commanded `LOADACT` signal, not an
+  independently measured total current. Threshold tolerances and estimator
+  dynamics therefore remain modeling extensions.
 - `BUCK_PHASE` has no diode reverse-recovery charge, output capacitance, or
-  nonlinear gate behavior. Dead-time spikes are therefore incomplete.
+  nonlinear gate behavior. `VBDROP` is only a series voltage offset on the
+  existing diode model. Dead-time spikes are therefore incomplete.
 - No loop-injection AC testbench is claimed for the switched COT models. Use an
   averaged linear model or a supported periodic/sampled-data method and state
   exactly what transfer function was measured.

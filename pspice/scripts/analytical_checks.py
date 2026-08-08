@@ -4,7 +4,11 @@
 from __future__ import annotations
 
 import math
+import sys
 from pathlib import Path
+
+sys.dont_write_bytecode = True
+import generate_multiphase
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -195,7 +199,196 @@ def main() -> int:
                 f"scheduler {boundary_name} complementary sum at {logic:g}-V logic",
             )
 
-    print("Analytical checks: PASS (15 relationship groups; no circuit simulator invoked)")
+    # The scalable capstone generator must retain every cumulative late-stage
+    # block for each supported phase count and both disclosed timing/scheduler
+    # architectures. This is a text-contract test, not a PSpice parse or run.
+    for phases in range(2, 9):
+        for scheduler in ("fixed-window", "free-running"):
+            for law in ("fixed", "adaptive"):
+                args = generate_multiphase.parser().parse_args(
+                    [
+                        "--phases",
+                        str(phases),
+                        "--scheduler",
+                        scheduler,
+                        "--on-time-law",
+                        law,
+                        "--output",
+                        "unused.cir",
+                    ]
+                )
+                generate_multiphase.validate_args(args)
+                deck = generate_multiphase.generate(args)
+                counts = {
+                    "buck phase": deck.count("\nXPH"),
+                    "current-limit comparator": deck.count("\nXCL"),
+                    "one-shot": deck.count("\nXSHOT"),
+                    "request comparator": deck.count("\nXREQ"),
+                    "balance cell": deck.count("\nXBAL"),
+                    "denied marker": deck.count("\nEDENIED"),
+                }
+                wrong = [name for name, count in counts.items() if count != phases]
+                if wrong:
+                    raise AssertionError(
+                        f"{phases}-phase {scheduler}/{law} wrong generated counts: "
+                        + ", ".join(wrong)
+                    )
+                if deck.count("\nXSHED") != phases - 1:
+                    raise AssertionError("generated phase-shedding cell count")
+                required = (
+                    "VCTRLEN CTRLEN 0 PWL",
+                    "VLOADCMD LOADCMD 0 PWL",
+                    "VIN IN 0 PWL",
+                    "EACTIVECOUNT ACTIVECOUNT",
+                    "EISHAREAVG ISHAREAVG",
+                    "COT_ONESHOT_CMD",
+                    "COMPLEMENTARY_DRIVER_ENABLE",
+                    "V(TRIP1)",
+                    "V(REF)",
+                    "V(FB1)",
+                    "V(ILIM)",
+                    "V(DENIED1)",
+                    "V(SHAREERR1)",
+                    "Cadence PSpice execution NOT RUN",
+                )
+                missing = [token for token in required if token not in deck]
+                if missing:
+                    raise AssertionError(
+                        f"{phases}-phase {scheduler}/{law} missing "
+                        + ", ".join(missing)
+                    )
+                longest = max(len(line) for line in deck.splitlines())
+                if longest > 120:
+                    raise AssertionError(
+                        f"{phases}-phase {scheduler}/{law} generated line "
+                        f"length {longest} exceeds 120 characters"
+                    )
+                if ("ETONBASE TONBASE" in deck) != (law == "adaptive"):
+                    raise AssertionError("generated adaptive timing-law selection")
+                if ("VTONBASE TONBASE" in deck) != (law == "fixed"):
+                    raise AssertionError("generated fixed timing-law selection")
+                permit_is_window = "VPERMIT1 PERMIT1 0 PULSE" in deck
+                if permit_is_window != (scheduler == "fixed-window"):
+                    raise AssertionError("generated scheduler selection")
+    print("PASS cumulative N-phase generator matrix: 2..8 phases, 28 configurations")
+
+    # Balance-off and shed-off remain observable: current errors are still
+    # formed, while balance gain is zero and all phases are explicitly active.
+    off_args = generate_multiphase.parser().parse_args(
+        [
+            "--phases",
+            "4",
+            "--balance",
+            "off",
+            "--phase-shedding",
+            "off",
+            "--output",
+            "unused.cir",
+        ]
+    )
+    generate_multiphase.validate_args(off_args)
+    off_deck = generate_multiphase.generate(off_args)
+    if off_deck.count("KBAL=0") != 4 or off_deck.count("\nVACTIVE") != 4:
+        raise AssertionError("generated balance/shed disable configuration")
+    if "EISHAREAVG ISHAREAVG" not in off_deck:
+        raise AssertionError("balance-off deck lost current-sharing observation")
+    zero_command_args = generate_multiphase.parser().parse_args(
+        [
+            "--phases", "2",
+            "--load", "0",
+            "--load-step", "0",
+            "--output", "unused.cir",
+        ]
+    )
+    generate_multiphase.validate_args(zero_command_args)
+    zero_command_deck = generate_multiphase.generate(zero_command_args)
+    if "VLOADCMD LOADCMD 0 PWL(0 0 " not in zero_command_deck:
+        raise AssertionError("generated zero commanded ideal-current load case")
+    bad_skew_args = generate_multiphase.parser().parse_args(
+        [
+            "--phases", "2",
+            "--phase-offset-skew-ns", "200",
+            "--output", "unused.cir",
+        ]
+    )
+    try:
+        generate_multiphase.validate_args(bad_skew_args)
+    except SystemExit as error:
+        if "window width/skew" not in str(error):
+            raise
+    else:
+        raise AssertionError("unsafe generated permit-slot skew was accepted")
+    for flag, value in (
+        ("--frequency", "nan"),
+        ("--phase-offset-skew-ns", "inf"),
+        ("--fixed-on-time", "-inf"),
+    ):
+        invalid_number_args = generate_multiphase.parser().parse_args(
+            [f"{flag}={value}", "--output", "unused.cir"]
+        )
+        try:
+            generate_multiphase.validate_args(invalid_number_args)
+        except SystemExit as error:
+            if "finite numeric values" not in str(error):
+                raise
+        else:
+            raise AssertionError(f"non-finite generator input accepted: {flag}={value}")
+    print("PASS generator rejects NaN/Infinity numeric inputs")
+    print(
+        "PASS generator disable/zero-command observability and permit-gap validation"
+    )
+
+    # The checked eight-phase example is generated from this exact option set.
+    fixture_args = generate_multiphase.parser().parse_args(
+        [
+            "--phases", "8",
+            "--scheduler", "fixed-window",
+            "--on-time-law", "adaptive",
+            "--balance", "on",
+            "--phase-shedding", "on",
+            "--load", "2",
+            "--load-step", "22",
+            "--l-mismatch-pct", "3",
+            "--dcr-mismatch-pct", "4",
+            "--resistance-mismatch-pct", "2",
+            "--sense-gain-mismatch-pct", "1.5",
+            "--sense-offset-mv", "12",
+            "--timing-mismatch-pct", "2",
+            "--phase-offset-skew-ns", "3",
+            "--ripple-amplitude", ".008",
+            "--ripple-phase-degrees", "45",
+            "--esl", "500e-12",
+            "--body-diode-extra-drop", ".05",
+            "--max-step", "2e-9",
+            "--output", "pspice/validation/generated-8phase-example.cir",
+        ]
+    )
+    generate_multiphase.validate_args(fixture_args)
+    expected_fixture = generate_multiphase.generate(fixture_args)
+    actual_fixture = (
+        ROOT / "pspice/validation/generated-8phase-example.cir"
+    ).read_text(encoding="utf-8")
+    if actual_fixture != expected_fixture:
+        raise AssertionError("checked eight-phase capstone is stale; regenerate it")
+    print("PASS checked eight-phase cumulative capstone reproducibility")
+
+    buck_text = (ROOT / "pspice/lib/BUCK_PHASE.lib").read_text(encoding="utf-8")
+    for token in ("VBDROP=0", "VBDH SW NBDH {VBDROP}", "VBDL NBDL SW {VBDROP}"):
+        if token not in buck_text:
+            raise AssertionError(f"buck body-diode offset structure missing: {token}")
+    balance_text = (ROOT / "pspice/lib/CURRENT_BALANCE.lib").read_text(
+        encoding="utf-8"
+    )
+    for token in (
+        ".SUBCKT CURRENT_BALANCE_CELL",
+        "V(IAVGINT)-V(IREFERENCE)",
+        "KBAL*V(ERROR)",
+    ):
+        if token not in balance_text:
+            raise AssertionError(f"N-phase balance-cell structure missing: {token}")
+    print("PASS generated body-diode offset and N-phase balance-cell structure")
+
+    print("Analytical checks: PASS (20 relationship groups; no circuit simulator invoked)")
     return 0
 
 

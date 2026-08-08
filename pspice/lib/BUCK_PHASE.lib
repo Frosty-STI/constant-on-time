@@ -12,13 +12,17 @@
 * Channel resistance is modeled explicitly in series with each ideal switch.
 * Body diodes establish a path during dead time and for reverse current.
 .SUBCKT BUCK_PHASE VIN OUT GHS GLS SW IMON PARAMS:
-+ LPH=1u DCR=5m RHS=10m RLS=5m IMONGAIN=1
++ LPH=1u DCR=5m RHS=10m RLS=5m VBDROP=0 IMONGAIN=1
 RHSER VIN NHS {RHS}
 SHS NHS SW GHS 0 SW_COTLAB
 RLSER SW NLS {RLS}
 SLS NLS 0 GLS 0 SW_COTLAB
-DHS SW VIN D_BODY_COTLAB
-DLS 0 SW D_BODY_COTLAB
+* VBDROP is an optional fixed series offset in addition to the nonlinear
+* D_BODY_COTLAB junction voltage. It is not the total diode forward voltage.
+VBDH SW NBDH {VBDROP}
+DHS NBDH VIN D_BODY_COTLAB
+DLS 0 NBDL D_BODY_COTLAB
+VBDL NBDL SW {VBDROP}
 LPHASE SW NL {LPH}
 RDCR NL NSENSE {DCR}
 VILSENSE NSENSE OUT 0

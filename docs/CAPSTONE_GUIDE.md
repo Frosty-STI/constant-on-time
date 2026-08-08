@@ -4,11 +4,23 @@ The capstone is complete when you can explain every block, sign, state,
 parameter, exclusion, and validation result. A waveform that merely resembles a
 buck converter is not sufficient.
 
-Use the supplied [`pspice/testbenches/capstone.cir`](../pspice/testbenches/capstone.cir)
-only after building the same behavior progressively. It combines two mismatched
-phases, adaptive on-time, fixed eligibility windows, per-phase current limit,
-current balance, phase shedding, dead time, and line/load events. It is an
-educational architecture, not a model of a named controller.
+There are two deliberately distinct capstone artifacts:
+
+- [`pspice/testbenches/capstone.cir`](../pspice/testbenches/capstone.cir) is the
+  fixed, readable two-phase integration bench. Use it to understand interacting
+  blocks before increasing phase count.
+- [`pspice/validation/generated-8phase-example.cir`](../pspice/validation/generated-8phase-example.cir)
+  is the checked generated example of the cumulative configurable 2–8-phase
+  capstone. Its generator carries N-phase operation through current balance,
+  phase shedding/re-entry, startup, line/load events, current limit,
+  fixed/adaptive timing, scheduler observation, and deterministic physical,
+  sense, and timing mismatch.
+
+The focused two-phase decks in `pspice/testbenches/` remain prerequisite and
+isolation tools. Stages 9–15 do **not** mean abandoning the generated N-phase
+artifact: add or debug each behavior in isolation, then regenerate the same N
+and confirm that the cumulative deck still contains and exposes every earlier
+stage. Both capstones are educational architectures, not named controllers.
 
 Cadence PSpice execution is still pending. See
 [`pspice/validation-status.md`](../pspice/validation-status.md).
@@ -158,21 +170,36 @@ Generate a 2–8 phase deck:
 
 ```bash
 python3 pspice/scripts/generate_multiphase.py \
-  --phases 6 --scheduler fixed-window \
+  --phases 6 --scheduler fixed-window --on-time-law adaptive \
+  --balance on --phase-shedding on \
+  --load 2 --load-step 16 \
   --l-mismatch-pct 1.5 --dcr-mismatch-pct 3 \
+  --resistance-mismatch-pct 2 \
+  --sense-gain-mismatch-pct 1 --sense-offset-mv 8 \
+  --timing-mismatch-pct 2 --phase-offset-skew-ns 3 \
   --output pspice/testbenches/generated_6phase.cir
 ```
 
 **Verify for each N:** number of phase instances, phase start spacing, `ISUM`
-terms, load per phase, per-phase current limit, and actual phase frequency.
+terms, load per phase, per-phase current limit, actual phase frequency,
+`ACTIVECOUNT`, active-weighted `ISHAREAVG`, and the `REQCk`/`REQk`/`DENIEDk`
+allocation sequence.
 
 **Accept only if:** generated source is preserved, input arguments are recorded,
-and N-dependent behavior is measured rather than inferred. The generator’s
+and N-dependent behavior is measured rather than inferred. Run
+`analytical_checks.py`; it exercises all 28 phase-count/scheduler/on-time-law
+combinations and detects a stale checked eight-phase artifact. These are text
+and arithmetic checks, not PSpice execution. The generator’s
 fixed-window/free-running choices do not represent every valid scheduler.
 
 ### Stage 9 — Current balancing
 
 Use `mismatch.cir` and isolate one mismatch at a time.
+
+Then preserve the selected N and regenerate with balance enabled. The
+cumulative deck instantiates one `CURRENT_BALANCE_CELL` per phase and forms
+`ISHAREAVG` only from `ACTIVEk` phases; `CURRENT_BALANCE_2` remains the focused
+two-phase teaching block, not the scalable final implementation.
 
 **Add in order:** L mismatch, DCR mismatch, channel resistance, sense gain,
 sense offset, timing skew, balance filter, bounded trim.
@@ -190,6 +217,18 @@ are not conflated; perfect sharing is not forced.
 
 Use `phase_shedding.cir`.
 
+Then preserve N and enable generated shedding. Phase 1 is mandatory; phases
+2..N receive progressively higher `IADD`/`ISHED` thresholds. The common
+`LOADACT` command drives those educational decisions, while `PHASEENk` gates
+both request and enable-aware driver. Inspect every `ACTIVEk` and
+`SHEDSTATEk`, not only total output voltage.
+
+The supplied synchronous re-entry abstraction can enable the low-side switch
+while `GATEk=0`, before that phase's first high-side grant. That can produce
+negative phase current. Treat it as a visible architecture choice, not an
+automatic safe-re-entry guarantee; add and validate first-pulse arming or
+diode emulation if the target behavior forbids reverse current.
+
 **Add:** separate `ISHED`/`IADD`, state ramp, request gating, an enable-aware
 driver that forces both FETs off, re-entry policy, and balance reset/enable
 decision. Do not use PWM-low as phase disable in a synchronous stage; PWM-low
@@ -206,6 +245,12 @@ unbounded stale trim.
 
 **Add one at a time:** comparator lag, phase skew, dead time, min on/off, max on,
 blanking where applicable.
+
+In the generated cumulative deck, `--timing-mismatch-pct` scales each phase's
+comparator delay, current-limit delay, on-time command, and dead time. It does
+not move the ideal fixed permit slots. Use the separate
+`--phase-offset-skew-ns` control to displace those slots; the generator rejects
+slot/window combinations with 2 ns or less remaining separation.
 
 **Predict:** current overshoot from delay, pulse-width floor/ceiling, maximum
 duty, phase-spacing error.
@@ -229,12 +274,17 @@ Create a corner table rather than one random case:
 Use deterministic values before Monte Carlo. Preserve random seeds and realized
 values if statistical analysis is later added.
 
+The generator emits the realized L, DCR, RHS, RLS, sense gain/offset, and timing
+scale on every phase, with the requested mismatch value applied at the outer
+phases and deterministic interpolation between them. Regenerate the same N for
+each corner; do not substitute a two-phase corner result for N-phase evidence.
+
 ### Stage 13 — Startup
 
 Run:
 
 - cold start at minimum/nominal/maximum VIN;
-- no load and nominal load;
+- zero commanded current (with disclosed bleed) and nominal load;
 - phase 2 initially disabled and enabled;
 - prebiased output below and above target; and
 - contradictory IC as a deliberate fault, clearly labeled.
@@ -243,9 +293,24 @@ Measure output overshoot, time to regulation, first pulse width, current limit,
 reverse current, phase-add timing, and balance-trim state. A controller that
 regulates only from a hand-initialized steady state has not passed startup.
 
+The generated deck exposes `CTRLEN`, a ramped `REF`, `LOADEN`, and
+`PHASEENk`. Its ideal current load is inactive until reference startup has
+completed. This is explicit sequencing, not a commercial soft-start or a
+controlled phase-current ramp at re-entry.
+
+For the nominal “no-load” startup case, use `--load 0 --load-step 0` and state
+that this means zero commanded ideal-current load, not an open circuit:
+`RBLEED` remains (100 Ω by default, or 50 mA at 5 V). A large finite
+`--bleed-resistance` creates a near-no-load case while preserving a defined DC
+path; record its residual current.
+
 ### Stage 14 — Load and line transients
 
 Use `load_step.cir`, `line_step.cir`, and capstone events.
+
+For the cumulative artifact, keep the generated finite `LOADCMD` and `VIN`
+events and examine all phases across them. `TONBASE` shows fixed or adaptive
+law output; `TONCMDk` includes local timing mismatch and min/max clamp.
 
 For each event, record:
 
@@ -286,6 +351,11 @@ Use the [debugging guide](PSPICE_DEBUGGING_GUIDE.md). Passing the adversarial
 cases means the model fails in the expected, explainable way and recovers when
 the root cause is corrected; it does not mean forcing every case to look stable.
 
+Repeat selected faults in the same generated N-phase configuration after the
+focused deck identifies the mechanism. The cumulative example must remain the
+final integration target through Stage 15; the prerequisite decks do not prove
+that N-phase loop/scheduler/shed interactions are correct.
+
 ## Capstone signal dictionary
 
 | Signal | Meaning | Scaling / sign |
@@ -293,26 +363,26 @@ the root cause is corrected; it does not mean forcing every case to look stable.
 | `IN` | input rail | volts |
 | `OUT` | load terminal/output including ESR effect | volts |
 | `NCAP` | ideal capacitor state-side node | volts |
-| `LOADMON` | requested load-current profile at nominal regulation | 1 V/A |
+| `REF` / `FBk` / `RIPPLE` | threshold reference / phase-k trimmed feedback / separately injected ripple | volts |
+| `ILIM` | common current-limit threshold | 1 V/A nominal |
+| `LOADMON` (fixed two-phase) / `LOADCMD` (generated N-phase) | requested load-current profile | 1 V/A |
 | `LOADEN` | startup load-enable ramp | 0..1 V |
 | `LOADACT` | ideal current load actually applied | 1 V/A |
-| `SW1`, `SW2` | phase switch nodes | volts |
-| `IMON1`, `IMON2` | measured phase currents | 1 V/A, positive into output |
-| `SENSE1`, `SENSE2` | gain/offset-affected current-sense signals | 1 V/A nominal |
+| `SWk` | phase-k switch node, k=1..N | volts |
+| `IMONk` | physical phase-k current monitor | 1 V/A, positive into output |
+| `SENSEk` | gain/offset-affected phase-k current-sense signal | 1 V/A nominal |
 | `ISUM` | sum of current monitors | 1 V/A |
-| `ICAPMON` | `ISUM-LOADACT-OUT/100` (includes checked-in bleed load) | 1 V/A |
-| `REQC1`, `REQC2` | raw phase comparator requests | 0/5 V |
-| `REQ1`, `REQ2` | scheduled/phase-enabled requests | 0/5 V |
-| `PERMIT1`, `PERMIT2` | fixed eligibility windows | 0/1 V |
-| `GATE1`, `GATE2` | one-shot PWM commands | 0/5 V |
-| `GH1`/`GL1`, `GH2`/`GL2` | actual high-/low-side switch commands after dead time and enable | 0/5 V |
-| `TRIP1`, `TRIP2` | current-limit trips | 0/5 V |
-| `READY1`, `READY2` | minimum-off eligibility | 0/5 V |
-| `TONMON` | adaptive time command | 1 V/s |
-| `TRIM1`, `TRIM2` | current-balance feedback shifts | volts |
-| `SHAREERR` | filtered monitor difference | 1 V/A |
-| `ACTIVE2` | phase-2 enable state | 0/1 V |
-| `SHEDSTATE` | analog phase-shed memory | 0..1 V |
+| `ICAPMON` | `ISUM-LOADACT-OUT/RBLEED` (100 Ω in checked examples) | 1 V/A |
+| `REQCk` / `REQk` / `DENIEDk` | raw request / granted opportunity / ungranted instantaneous request | 0/5 V |
+| `PERMITk` | fixed eligibility window or constant-one free-running permit | 0/1 V |
+| `GATEk` | phase-k one-shot PWM command | 0/5 V |
+| `GHk` / `GLk` | phase-k high-/low-side commands after dead time and enable | 0/5 V |
+| `TRIPk` / `READYk` | current-limit trip / minimum-off eligibility | 0/5 V |
+| `TONMON` (fixed two-phase) / `TONBASE`, `TONCMDk` (generated N-phase) | base and local time command | 1 V/s |
+| `IAVGk` / `ISHAREAVG` / `SHAREERRk` | filtered sensed current / active-phase reference / local error | 1 V/A |
+| `TRIMk` | current-balance feedback shift; positive reduces pulse demand | volts |
+| `ACTIVEk` / `ACTIVECOUNT` | phase-k enable decision / number of enabled phases | 0/1 V / phase count |
+| `SHEDSTATEk` | analog phase-k shed/re-entry memory (k>1) | 0..1 V |
 
 ## Capstone parameter ownership
 
@@ -325,15 +395,15 @@ The complete requested parameter space is distributed across blocks:
 | L, DCR, RHS, RLS, monitor export scale | `BUCK_PHASE` instance |
 | fixed/adaptive on-time law, min/max on, min off | COT controller/one-shot |
 | dead time / phase-disable gate state | `COMPLEMENTARY_DRIVER`; enable-aware wrapper for a shed phase |
-| body-diode drop | `D_BODY_COTLAB` model (global library model) |
+| body-diode behavior | `D_BODY_COTLAB` junction plus per-instance `VBDROP`; `VBDROP` is an added series offset, not total forward drop |
 | current-sense gain/offset | explicit ABM `SENSEk` source at caller |
 | current limit and limit-comparator delay | `COT_CURRENT_LIMIT` threshold / `TDELAY` |
 | comparator smoothing, hysteresis, delay | `COT_REQUEST` |
 | injected ripple amplitude/source/phase | top-level `RIPPLE` source |
-| balance gain/bandwidth/clamp | `CURRENT_BALANCE_2` |
-| phase separation/scheduler | permits or scheduler library |
-| mismatch | per-instance values / generator options |
-| shed/re-entry thresholds | `PHASE_SHEDDING_2` |
+| balance gain/bandwidth/clamp | `CURRENT_BALANCE_2` in the focused deck; generated `CURRENT_BALANCE_CELL` instances plus active-weighted `ISHAREAVG` for N phases |
+| phase separation/scheduler | permits or scheduler library; generated `--phase-offset-skew-ns` displaces fixed slots while local timing mismatch does not |
+| mismatch | explicit per-instance values / generator options for L, DCR, switches, sense, and local timing |
+| shed/re-entry thresholds | repeated `PHASE_SHEDDING_2` cells for generated phases 2..N |
 
 Not every requested commercial-style parameter is a single knob in
 `capstone.cir`; plain-text ownership is kept explicit. If a parameter is added,

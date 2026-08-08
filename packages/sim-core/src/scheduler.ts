@@ -15,6 +15,8 @@ export interface PhaseSchedulerConfig {
   basePeriod?: number;
   phaseOffsets?: readonly number[];
   currentPriority?: "lowest-current" | "highest-current";
+  /** Optional age at which an ungranted request is explicitly dropped. */
+  maximumRequestAge?: number;
 }
 
 export interface PulseRequest {
@@ -74,6 +76,7 @@ export function validateSchedulerConfig(config: PhaseSchedulerConfig): void {
     throw new RangeError("phaseCount must be an integer from 1 through 64");
   }
   assertNonNegative(config.minimumSeparation ?? 0, "minimumSeparation");
+  if (config.maximumRequestAge !== undefined) assertNonNegative(config.maximumRequestAge, "maximumRequestAge");
   if (config.method === "ideal-fixed-spacing") assertPositive(config.basePeriod ?? 0, "basePeriod");
   if (config.basePeriod !== undefined) assertPositive(config.basePeriod, "basePeriod");
   if (config.phaseOffsets !== undefined) {
@@ -269,7 +272,12 @@ export function schedulePulseRequests(
     }
   });
 
-  const candidates = requests.filter((request) => (request.eligibleAt ?? request.requestedAt) <= time);
+  const expiredPhases = new Set(requests.flatMap((request) =>
+    config.maximumRequestAge !== undefined && time - request.requestedAt >= config.maximumRequestAge - 1e-15
+      ? [request.phase]
+      : []));
+  const candidates = requests.filter((request) =>
+    !expiredPhases.has(request.phase) && (request.eligibleAt ?? request.requestedAt) <= time);
   const separationSatisfied =
     next.lastGlobalGrantAt === null || time - next.lastGlobalGrantAt >= (config.minimumSeparation ?? 0) - 1e-15;
   let selected: PulseRequest[] = [];
@@ -282,6 +290,9 @@ export function schedulePulseRequests(
 
   const selectedPhases = new Set(selected.map((request) => request.phase));
   const decisions: SchedulerDecision[] = requests.map((request) => {
+    if (expiredPhases.has(request.phase)) {
+      return { phase: request.phase, status: "denied", reason: "request exceeded the configured maximum age and was dropped" };
+    }
     if (selectedPhases.has(request.phase)) {
       return { phase: request.phase, status: "granted", reason: "selected by scheduler" };
     }
@@ -315,6 +326,7 @@ export function schedulePulseRequests(
     // so counting those would make the metric depend on scheduler poll rate.
     if (decision.status === "denied") {
       next.deniedCount[decision.phase] = (next.deniedCount[decision.phase] ?? 0) + 1;
+      next.pendingSince[decision.phase] = null;
     }
   });
 

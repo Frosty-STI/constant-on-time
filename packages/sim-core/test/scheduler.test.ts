@@ -75,6 +75,21 @@ describe("multiphase pulse schedulers", () => {
     expect(result.state.deniedCount).toEqual([0, 0]);
   });
 
+  it("explicitly drops an aged request once a configured deadline expires", () => {
+    const config: PhaseSchedulerConfig = { method: "round-robin", phaseCount: 2, maximumRequestAge: 500e-9 };
+    let result = schedulePulseRequests(config, createSchedulerState(config), 0, [
+      { phase: 0, requestedAt: 0, eligibleAt: 1e-6 }
+    ]);
+    expect(result.decisions[0]?.status).toBe("waiting");
+    result = schedulePulseRequests(config, result.state, 500e-9, [
+      { phase: 0, requestedAt: 0, eligibleAt: 1e-6 }
+    ]);
+    expect(result.decisions[0]).toMatchObject({ status: "denied", phase: 0 });
+    expect(result.state.deniedCount).toEqual([1, 0]);
+    expect(result.state.pendingSince[0]).toBeNull();
+    expect(result.grants).toHaveLength(0);
+  });
+
   it("uses the under-current phase for lowest-current priority", () => {
     const config: PhaseSchedulerConfig = { method: "current-priority", phaseCount: 3 };
     const result = schedulePulseRequests(config, createSchedulerState(config), 0, [

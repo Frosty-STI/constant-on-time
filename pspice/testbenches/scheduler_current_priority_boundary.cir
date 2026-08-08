@@ -1,0 +1,29 @@
+Constant On-Time Lab -- current-priority Boolean boundary regression fixture
+.INC "pspice/lib/PHASE_SCHEDULER.lib"
+
+* Both requests remain asserted at 5-V logic so a half-scale selector would
+* incorrectly look like two asserted grants. I2 stays at 4 V (1 V/A).
+VREQ1 REQ1 0 PULSE(0 5 500n 1n 1n 4u 10u)
+VREQ2 REQ2 0 PULSE(0 5 500n 1n 1n 4u 10u)
+VINHIBIT INHIBIT 0 0
+VI2 I2 0 4
+* With TIEBIAS=50 mV: exact boundary, 1 mV below, then 1 mV above.
+VI1 I1 0 PWL(0 4.05 2u 4.05 2.001u 4.049
++ 3u 4.049 3.001u 4.051 5u 4.051)
+
+XCP REQ1 REQ2 I1 I2 INHIBIT G1 G2 D1 D2 CURRENT_PRIORITY_2 PARAMS:
++ VLOGIC=5 TIEBIAS=50m
+.OPTIONS RELTOL=1m ABSTOL=10n VNTOL=1u
+.TRAN 1n 4.5u 0 1n
+
+* Expected: exact/below boundary => G1=5 V, G2=0 V; above => opposite.
+* At every settled sample G1+G2 must equal 5 V, never two half/full grants.
+.MEAS TRAN EXACT_G1 FIND V(G1) AT=1.5u
+.MEAS TRAN EXACT_G2 FIND V(G2) AT=1.5u
+.MEAS TRAN BELOW_G1 FIND V(G1) AT=2.5u
+.MEAS TRAN BELOW_G2 FIND V(G2) AT=2.5u
+.MEAS TRAN ABOVE_G1 FIND V(G1) AT=3.5u
+.MEAS TRAN ABOVE_G2 FIND V(G2) AT=3.5u
+
+.PROBE V(REQ1) V(REQ2) V(I1) V(I2) V(G1) V(G2) V(D1) V(D2)
+.END

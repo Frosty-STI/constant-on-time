@@ -1,0 +1,25 @@
+Constant On-Time Lab -- constructed averaged loop-gain cascade
+* This is a linear cascade at a fixed CCM operating point, not a switched-loop
+* injection measurement. V(LOOP)/V(ERR) includes compensator, duty modulator,
+* averaged plant, and unity feedback. VERR has AC magnitude 1.
+.INC "pspice/lib/BUCK_PHASE.lib"
+.PARAM VIN_DC=12 VOUT_DC=5 D={VOUT_DC/VIN_DC}
+VIN IN 0 {VIN_DC}
+VERR ERR 0 DC 0 AC 1
+* Type-II-like transconductance compensation impedance.
+GERR 0 COMP VALUE={1m*V(ERR)}
+RZERO COMP NZ 20k
+CZERO NZ 0 10n
+CPOLE COMP 0 100p
+RLEAK COMP 0 1G
+* Unit modulator gain around explicit DC duty bias.
+EDUTY DUTY 0 VALUE={D+V(COMP)}
+XPLANT IN DUTY OUT IMON BUCK_AVERAGED PARAMS: LPH=2u DCR=10m
+RESR OUT NCAP 8m
+COUT NCAP 0 220u
+RLOAD OUT 0 1
+ELOOP LOOP 0 VALUE={V(OUT)}
+.OPTIONS RELTOL=1m ABSTOL=10n VNTOL=1u
+.AC DEC 100 10 10MEG
+.PROBE V(ERR) V(COMP) V(DUTY) V(OUT) V(LOOP) V(IMON)
+.END

@@ -263,6 +263,11 @@ code, output, .module-number, .engineering-field input, .transport-readout, .sta
 .scope-comparison-grid .scope-panel { min-width: 0; border: 0; }
 
 .scope-panel { padding: 10px 12px 9px; border-top: 0; border-bottom: 1px solid var(--line-strong); background: #0c1721; }
+.supplemental-scope { border-top: 1px solid var(--line-strong); background: #0a141d; }
+.supplemental-scope .scope-panel { border-bottom: 1px solid var(--line-strong); }
+.model-boundary-note { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; align-items: start; padding: 11px 14px; border-bottom: 1px solid var(--line); background: #101d28; }
+.model-boundary-note strong { color: var(--amber); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.model-boundary-note p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .scope-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .scope-title-row h3 { margin: 0; font-size: 12px; }
 .cursor-readout { padding: 3px 7px; border: 1px solid #725d00; border-radius: 3px; background: #251f00; color: var(--amber); font-size: 10px; }
@@ -336,6 +341,9 @@ code, output, .module-number, .engineering-field input, .transport-readout, .sta
 .simulation-error p { margin: 0 0 8px; color: #e7b4b0; font-size: 11px; }
 .simulation-error button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 8px; border: 1px solid #87514c; border-radius: 4px; background: transparent; cursor: pointer; }
 .simulation-error button svg { width: 13px; height: 13px; }
+.reveal-gate { display: flex; align-items: center; gap: 9px; min-height: 58px; padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--muted); background: color-mix(in srgb, var(--surface-1) 88%, var(--teal-dim)); }
+.reveal-gate svg { width: 17px; color: var(--teal); flex: 0 0 auto; }
+.reveal-gate p { margin: 0; }
 
 .inspector { position: sticky; top: 0; min-width: 0; border-bottom: 1px solid var(--line-strong); background: #0d1924; }
 .inspector-heading { display: flex; justify-content: space-between; align-items: center; min-height: 43px; padding: 0 14px; border-bottom: 1px solid var(--line-strong); }
@@ -515,6 +523,7 @@ code, output, .module-number, .engineering-field input, .transport-readout, .sta
   .top-actions > button:nth-of-type(n+2) { display: none; }
   .workbench { padding: 0 6px 18px; }
   .workbench-header { display: block; }
+  .model-boundary-note { grid-template-columns: 1fr; gap: 5px; }
   .workbench-header .bookmark-button { margin-top: 10px; }
   .prediction-entry { grid-template-columns: 1fr; gap: 5px; }
   .prediction-input-row { flex-wrap: wrap; }

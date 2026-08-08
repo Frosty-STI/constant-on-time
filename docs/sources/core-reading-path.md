@@ -158,7 +158,7 @@ This 15-source path is the shortest rigorous route in this library from switch-s
 
 ## 15. `CAD-PSPICE-UG` — translate every abstraction into inspectable PSpice syntax
 
-- **Full citation:** Cadence Design Systems, *PSpice User Guide*, official software manual, 2016 edition hosted by Cadence.
+- **Full citation:** Cadence Design Systems, *PSpice A/D User Guide*, Product Version 17.4-2019, October 2019; document updated March 2022, official software manual.
 - **Link / accessed:** https://resources.pcb.cadence.com/i/1180526-pspice-user-guide — 2026-08-08.
 - **Difficulty / prerequisites:** Intermediate; SPICE netlists, transient analysis, and sources 1–14 for physical meaning.
 - **Review exactly:** Analog behavioral modeling; ABM expressions and math functions; Laplace transforms and frequency-response tables; transient analysis; convergence and simulation options; parametric sweeps; and Monte Carlo analysis.

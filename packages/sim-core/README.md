@@ -120,6 +120,12 @@ Their state records requests, grants, denials, wait time, collisions, Jain's
 fairness index, and threshold-based starvation. These are behavioral teaching
 architectures, not claims about any vendor's pulse-allocation method.
 
+Each scheduler call supplies the complete set of requests that are still
+asserted, not only newly arriving edges. Omitting a previously pending phase is
+an explicit cancellation; `cancelledPhases` identifies it, clears its
+starvation age, and lets a later request start a fresh wait interval. While a
+request remains active, its `requestedAt` timestamp is immutable.
+
 `updateCurrentBalance` implements a differential PI trim. It removes common mode
 so the current-sharing loop does not directly replace the voltage-regulation
 loop. It warns when declared current-sharing bandwidth reaches one third of the
@@ -138,7 +144,10 @@ cancellation, and output-ripple estimates. The Bode module supplies:
 - explicit modulator and feedback gain;
 - optional pure delay;
 - loop and closed-loop response; and
-- crossover, phase-margin, phase-crossover, and gain-margin extraction.
+- all unity and negative-real-axis crossings, signed nearest-branch phase
+  clearance, and gain-margin extraction. For ordinary single-winding loops the
+  signed clearance is the familiar phase margin; a multi-winding Nyquist case
+  still requires the full contour rather than one scalar.
 
 The small-signal plant omits switching sampling, controller-specific modulation,
 and most parasitics. It must not be silently combined with a switched trace or

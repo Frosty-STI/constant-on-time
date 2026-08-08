@@ -61,6 +61,9 @@ export interface SchedulerStepResult {
   state: PhaseSchedulerState;
   grants: PulseGrant[];
   decisions: SchedulerDecision[];
+  /** Previously pending phase requests that the caller explicitly cancelled
+   * by omitting them from this step's complete active-request set. */
+  cancelledPhases: number[];
   fairness: SchedulerFairness;
 }
 
@@ -266,10 +269,24 @@ export function schedulePulseRequests(
     if (config.method === "current-priority" && request.measuredCurrent === undefined) {
       throw new RangeError("current-priority requests require measuredCurrent");
     }
-    if (next.pendingSince[request.phase] === null) {
+    const existingRequestAt = next.pendingSince[request.phase];
+    if (existingRequestAt === undefined) throw new RangeError("scheduler-state array length mismatch");
+    if (existingRequestAt === null) {
       next.pendingSince[request.phase] = request.requestedAt;
       next.requestCount[request.phase] = (next.requestCount[request.phase] ?? 0) + 1;
+    } else if (Math.abs(existingRequestAt - request.requestedAt) > 1e-15) {
+      throw new RangeError("an active phase request must keep its original requestedAt; omit it for one step to cancel before replacing it");
     }
+  });
+
+  // `requests` is the complete set of requests that remain asserted at this
+  // instant, not an arrival-only delta. If a comparator or supervisory gate
+  // withdraws a request before grant, omission cancels that request so a
+  // later pulse from the same phase starts a fresh wait/fairness history.
+  const cancelledPhases = next.pendingSince.flatMap((pending, phase) => {
+    if (pending === null || phasesSeen.has(phase)) return [];
+    next.pendingSince[phase] = null;
+    return [phase];
   });
 
   const expiredPhases = new Set(requests.flatMap((request) =>
@@ -341,6 +358,7 @@ export function schedulePulseRequests(
     state: next,
     grants,
     decisions,
+    cancelledPhases,
     fairness: schedulerFairness(next, time, starvationThreshold)
   };
 }

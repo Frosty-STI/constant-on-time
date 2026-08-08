@@ -6,15 +6,17 @@ interface CircuitDiagramProps {
   readonly activeState: number;
   readonly inductorCurrent: number;
   readonly running: boolean;
+  readonly revealed: boolean;
   readonly onStateChange: (state: number) => void;
 }
 
 const stateLabels = ['High-side on', 'Low-side on', 'Dead time', 'Async freewheel', 'Reverse · low-side on', 'Diode emulation', 'Startup'] as const;
 
-export const CircuitDiagram = ({ labId, phaseCount, activeState, inductorCurrent, running, onStateChange }: CircuitDiagramProps) => {
+export const CircuitDiagram = ({ labId, phaseCount, activeState, inductorCurrent, running, revealed, onStateChange }: CircuitDiagramProps) => {
   const showStatePuzzle = labId === 'current-path';
   const reverse = inductorCurrent < 0;
   const path = (() => {
+    if (!revealed) return null;
     if (!showStatePuzzle) return 'M48 35H170V97H481';
     if (activeState === 0) return reverse ? 'M481 97H170V35H48' : 'M48 35H170V97H481';
     if (activeState === 1) return reverse ? 'M481 97H170V153H48' : 'M48 153H170V97H481';
@@ -32,7 +34,7 @@ export const CircuitDiagram = ({ labId, phaseCount, activeState, inductorCurrent
       </div>
       <svg className={`buck-diagram ${running ? 'is-running' : ''}`} viewBox="0 0 760 190" role="img" aria-labelledby="buck-title buck-description">
         <title id="buck-title">Synchronous buck converter current path</title>
-        <desc id="buck-description">Input source, high-side and low-side switches, per-phase inductor, output capacitor, and load. The highlighted arrow follows both the selected conduction state and the inductor-current sign.</desc>
+        <desc id="buck-description">Input source, high-side and low-side switches, per-phase inductor, output capacitor, and load. After the prediction is locked and the simulation is run, the highlighted arrow follows both the selected conduction state and the inductor-current sign.</desc>
         <defs>
           <marker id="arrow-forward" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
             <path d="M0 0 10 5 0 10z" fill="currentColor" />

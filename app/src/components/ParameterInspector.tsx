@@ -14,13 +14,15 @@ interface ParameterInspectorProps {
   readonly pending: boolean;
   readonly playback: PlaybackController;
   readonly seed: number;
+  readonly predictionSubmitted: boolean;
+  readonly revealed: boolean;
   readonly onParameterChange: (key: string, value: number) => void;
   readonly onRun: () => void;
   readonly onSavePreset: () => void;
 }
 
-export const ParameterInspector = ({ lab, parameters, result, error, pending, playback, seed, onParameterChange, onRun, onSavePreset }: ParameterInspectorProps) => {
-  const activeWarnings = error ? [error] : result?.warnings ?? [];
+export const ParameterInspector = ({ lab, parameters, result, error, pending, playback, seed, predictionSubmitted, revealed, onParameterChange, onRun, onSavePreset }: ParameterInspectorProps) => {
+  const activeWarnings = error ? [error] : revealed ? result?.warnings ?? [] : [];
   return (
     <aside className="inspector" aria-labelledby="inspector-title">
       <div className="inspector-heading">
@@ -62,7 +64,7 @@ export const ParameterInspector = ({ lab, parameters, result, error, pending, pl
           <span className="abstraction-label">{lab.abstraction}</span>
         </div>
         <div className="transport-grid">
-          <button type="button" className="run-button" onClick={() => { onRun(); playback.play(); }} disabled={Boolean(error) || pending || !result}><Play aria-hidden="true" />{pending ? 'Calculating…' : 'Run simulation'}</button>
+          <button type="button" className="run-button" title={predictionSubmitted ? undefined : 'Submit and lock a prediction first.'} onClick={() => { onRun(); playback.play(); }} disabled={Boolean(error) || pending || !result || !predictionSubmitted}><Play aria-hidden="true" />{pending ? 'Calculating…' : 'Run simulation'}</button>
           <button type="button" onClick={playback.pause} disabled={!playback.running}><Pause aria-hidden="true" />Pause</button>
           <button type="button" onClick={playback.reset}><RotateCcw aria-hidden="true" />Reset</button>
           <button type="button" onClick={playback.stepInterval}><StepForward aria-hidden="true" />Step interval</button>
@@ -92,7 +94,7 @@ export const ParameterInspector = ({ lab, parameters, result, error, pending, pl
         <h3>Sources</h3>
         <ol>{lab.sources.map((source) => <li key={source}><code>{source}</code></li>)}</ol>
       </section>
-      {result ? (
+      {result && revealed ? (
         <section className="inspector-section live-metrics">
           <h3>Calculated results</h3>
           <dl>

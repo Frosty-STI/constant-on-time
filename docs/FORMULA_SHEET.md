@@ -32,7 +32,7 @@ The **Sources** column is the derivation/reference trail; the relevant structure
 | \(m_{off}=di_L/dt=-V_o/L\) | A/s | Ideal low-side-on/freewheel node at 0 V | Using it during diode dead time or reverse current with a different switch-node clamp | MIT622-L05, TI-SLVA057 |
 | \(\Delta i_{L,pp}=(V_{in}-V_o)D/(Lf_s)\) | A | Ideal fixed-frequency CCM triangular ripple | Using nominal \(D\) when timing varies or pulses skip | TI-SLVA057, TI-SLVA477 |
 | \(I_{pk}=I_{L,avg}+\Delta i_L/2;\ I_{val}=I_{L,avg}-\Delta i_L/2\) | A | Symmetric linear ramps around average | Assuming symmetry with nonlinear L, asymmetric timing, or transients | TI-SLVA477 |
-| \(I_{o,BCM}=\Delta i_L/2\) | A | Ideal unidirectional buck at CCM/DCM boundary | Applying to forced reverse-current operation | MIT622-L08, TI-SLVA057 |
+| \(I_{phase,BCM}=\Delta i_L/2;\ I_{o,BCM}=N\Delta i_L/2\) | A | Ideal unidirectional buck; balanced N-phase currents, equal per-phase ripple, and every phase continuously switching at its boundary (the single-phase case is \(N=1\)) | Calling the per-phase boundary the total output current, or applying it to phase shedding/forced reverse-current operation | MIT622-L08, TI-SLVA057, TI-SLVA882 |
 | \(\Delta v_{C,pp}\approx\Delta i_L/(8Cf_s)\) | V | Single-phase triangular capacitor current, ideal C, CCM, steady state | Adding directly to ESR ripple without checking timing | TI-SLVA057, TI-SLVA477 |
 | \(\Delta v_{ESR,pp}\approx\Delta i_LR_{ESR}\) | V | Lumped constant ESR, triangular current | Calling fast edge ringing “ESR ripple” when ESL/layout dominate | TI-SLVA477, ADI-AN1144 |
 | \(i_C=\sum_{k=1}^{N}i_{L,k}-i_{load}\) | A | Shared output node, stated current directions | Averaging phases before evaluating switched capacitor current | FPE3, TI-SLVA882 |
@@ -47,7 +47,7 @@ The **Sources** column is the derivation/reference trail; the relevant structure
 | \(10\log_{10}(P_2/P_1)\) | dB | Power ratio | Using 20 log for direct power ratio | FPE3 |
 | \(t_{on}=D/f_s\) | s | Fixed-frequency periodic PWM | Treating \(f_s\) as fixed in basic COT | TI-SLVA281 |
 | \(f_{s,avg}\approx D/t_{on}\approx V_o/(V_{in}t_{on})\) | Hz | Ideal CCM basic fixed-on-time buck near steady \(V_o\), no skips/delay | Calling frequency instantaneous, exact, or constant | TI-SLVA281, RIDLEY-1990-COT |
-| \(D_{max}\lesssim t_{on,max}/(t_{on,max}+t_{off,min})\) | unitless | Simple repeating pulses; no extra scheduler delay | Ignoring propagation, dead time, denied/skipped pulses, or adaptive laws | ON-FAN23SV10M, TI-SLYY205 |
+| \(D_{max}\lesssim t_{on,max}/(t_{on,max}+t_{off,min})\) | unitless | Simple repeating pulses; no extra scheduler delay | Ignoring propagation, dead time, denied/skipped pulses, or adaptive laws | ON-FAN23SV10M |
 | \(\theta_k=360^\circ k/N\) | degrees | Ideal equal phase spacing | Assuming it guarantees equal current | TI-SLVA882 |
 | \(f_{ripple,ideal}=Nf_s\) | Hz | Symmetric equal-frequency phases, uniform spacing | Applying to free-running variable-frequency or mismatched phases | TI-SLVA882 |
 | \(I_{phase,avg}\approx I_o/N\) | A | Balanced symmetric N-phase steady state | Treating it as guaranteed without sensing/balance | TI-SLVA882, TI-SSZTC61 |

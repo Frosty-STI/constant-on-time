@@ -90,6 +90,40 @@ describe("multiphase pulse schedulers", () => {
     expect(result.grants).toHaveLength(0);
   });
 
+  it("cancels an omitted active request before counting a later request as new", () => {
+    const config: PhaseSchedulerConfig = { method: "round-robin", phaseCount: 2 };
+    let result = schedulePulseRequests(config, createSchedulerState(config), 0, [
+      { phase: 0, requestedAt: 0 },
+      { phase: 1, requestedAt: 0 }
+    ]);
+    expect(result.grants[0]?.phase).toBe(0);
+    expect(result.state.pendingSince[1]).toBe(0);
+
+    result = schedulePulseRequests(config, result.state, 1e-6, []);
+    expect(result.cancelledPhases).toEqual([1]);
+    expect(result.state.pendingSince[1]).toBeNull();
+    expect(result.fairness.starvedPhases).toEqual([]);
+
+    result = schedulePulseRequests(config, result.state, 20e-6, [
+      { phase: 1, requestedAt: 20e-6 }
+    ]);
+    expect(result.state.requestCount[1]).toBe(2);
+    expect(result.grants[0]).toMatchObject({ phase: 1, requestedAt: 20e-6, waitTime: 0 });
+  });
+
+  it("rejects silently replacing a still-active request timestamp", () => {
+    const config: PhaseSchedulerConfig = { method: "minimum-separation", phaseCount: 1, minimumSeparation: 1e-6 };
+    const granted = schedulePulseRequests(config, createSchedulerState(config), 0, [
+      { phase: 0, requestedAt: 0 }
+    ]);
+    const pending = schedulePulseRequests(config, granted.state, 100e-9, [
+      { phase: 0, requestedAt: 100e-9 }
+    ]);
+    expect(() => schedulePulseRequests(config, pending.state, 200e-9, [
+      { phase: 0, requestedAt: 200e-9 }
+    ])).toThrow(/keep its original requestedAt/);
+  });
+
   it("uses the under-current phase for lowest-current priority", () => {
     const config: PhaseSchedulerConfig = { method: "current-priority", phaseCount: 3 };
     const result = schedulePulseRequests(config, createSchedulerState(config), 0, [

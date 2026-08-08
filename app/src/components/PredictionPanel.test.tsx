@@ -14,12 +14,14 @@ describe('predict-before-reveal interaction', () => {
     if (!lab) return;
     const result = runLab(lab, defaultParameters(lab));
     const record = vi.fn();
-    const { rerender } = render(<PredictionPanel lab={lab} result={result} hasRun={false} onRecord={record} />);
+    const submitted = vi.fn();
+    const { rerender } = render(<PredictionPanel lab={lab} result={result} hasRun={false} revision={0} onSubmittedChange={submitted} onRecord={record} />);
     await user.type(screen.getByLabelText('Your prediction'), String(result.expectedPrediction));
     await user.click(screen.getByRole('button', { name: 'Submit prediction' }));
     expect(screen.getByText(/Prediction locked/)).toBeInTheDocument();
     expect(record).not.toHaveBeenCalled();
-    rerender(<PredictionPanel lab={lab} result={result} hasRun onRecord={record} />);
+    expect(submitted).toHaveBeenCalledWith(true);
+    rerender(<PredictionPanel lab={lab} result={result} hasRun revision={0} onSubmittedChange={submitted} onRecord={record} />);
     expect(await screen.findByText(/within the accepted range/)).toBeInTheDocument();
     expect(record).toHaveBeenCalledWith(true);
   });

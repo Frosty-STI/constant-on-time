@@ -55,19 +55,28 @@ export interface LabEvent {
   readonly kind: 'edge' | 'request' | 'grant' | 'waiting' | 'delayed' | 'denied' | 'load' | 'crossing' | 'artifact';
 }
 
-export interface LabResult {
+export interface LabPlot {
   readonly x: readonly number[];
   readonly xLabel: string;
   readonly xUnit: string;
   readonly signals: readonly SignalSeries[];
-  readonly metrics: readonly LabMetric[];
   readonly events: readonly LabEvent[];
+}
+
+export interface SupplementalPlot extends LabPlot {
+  readonly title: string;
+  readonly disclosure: string;
+}
+
+export interface LabResult extends LabPlot {
+  readonly metrics: readonly LabMetric[];
   readonly expectedPrediction: number | string;
   readonly predictionTolerance?: number;
   readonly summary: string;
   readonly discrepancyHint: string;
   readonly warnings: readonly string[];
   readonly seed: number;
+  readonly supplementalPlots?: readonly SupplementalPlot[];
 }
 
 const COLORS = ['#ffc400', '#36c7d8', '#f061c8', '#5bd26a', '#9b8cff', '#ff8a4c', '#62a0ff', '#f2f5f7'] as const;
@@ -117,6 +126,108 @@ const dutyTriangle = (cyclePosition: number, duty: number): number => {
 };
 
 const clamp = (input: number, minimum: number, maximum: number): number => Math.min(maximum, Math.max(minimum, input));
+
+/** Maps phase margin to the damping ratio of the canonical second-order,
+ * unity-feedback model. This is intentionally a reduced-order interpretation,
+ * not an assertion that an arbitrary converter loop is exactly second order. */
+const dampingFromPhaseMargin = (phaseMarginDegrees: number): number => {
+  const target = clamp(phaseMarginDegrees, 0.1, 89.9) * Math.PI / 180;
+  const marginForDamping = (damping: number): number => Math.atan2(
+    2 * damping,
+    Math.sqrt(Math.max(Math.sqrt(1 + 4 * damping ** 4) - 2 * damping ** 2, 1e-18)),
+  );
+  let lower = 0.001;
+  let upper = 10;
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    const midpoint = (lower + upper) / 2;
+    if (marginForDamping(midpoint) < target) lower = midpoint;
+    else upper = midpoint;
+  }
+  return (lower + upper) / 2;
+};
+
+/** Converts the unity-gain frequency of the canonical second-order loop to its
+ * undamped natural frequency. */
+const naturalFrequencyFromCrossover = (crossover: number, damping: number): number => {
+  // For L(s)=ωn²/[s(s+2ζωn)], unity gain gives
+  // (ωc/ωn)^4 + 4ζ²(ωc/ωn)² - 1 = 0.
+  const ratioSquared = Math.sqrt(1 + 4 * damping ** 4) - 2 * damping ** 2;
+  return crossover / Math.sqrt(Math.max(ratioSquared, 1e-18));
+};
+
+interface SecondOrderRecoveryOptions {
+  readonly title: string;
+  readonly disclosure: string;
+  readonly naturalFrequency: number;
+  readonly damping: number;
+  readonly capacitance: number;
+  readonly loadStep: number;
+}
+
+/** Closed-form load-disturbance response for
+ *   d2v/dt2 + 2 zeta wn dv/dt + wn2 v = 0,
+ * with dv/dt(0+) = -DeltaI/C. The companion current is reconstructed from
+ * i_control = DeltaI + C dv/dt. */
+const secondOrderRecoveryPlot = (options: SecondOrderRecoveryOptions): SupplementalPlot => {
+  const damping = Math.max(options.damping, 0.001);
+  const omega = 2 * Math.PI * Math.max(options.naturalFrequency, 1);
+  const decayRate = damping < 1 ? damping * omega : omega * (damping - Math.sqrt(damping ** 2 - 1));
+  const responseDuration = Math.min(Math.max(10 / Math.max(decayRate, 1), 40e-6), 20e-3);
+  const stepTime = responseDuration * 0.08;
+  const x = linspace(0, stepTime + responseDuration, 1201);
+  const outputDeviation: number[] = [];
+  const controllerCurrent: number[] = [];
+  const loadCurrent: number[] = [];
+  const initialSlope = -options.loadStep / options.capacitance;
+
+  for (const time of x) {
+    const elapsed = time - stepTime;
+    if (elapsed < 0) {
+      outputDeviation.push(0);
+      controllerCurrent.push(0);
+      loadCurrent.push(0);
+      continue;
+    }
+    let deviation: number;
+    let derivative: number;
+    if (damping < 1 - 1e-8) {
+      const dampedOmega = omega * Math.sqrt(1 - damping ** 2);
+      const envelope = Math.exp(-damping * omega * elapsed);
+      deviation = initialSlope * envelope * Math.sin(dampedOmega * elapsed) / dampedOmega;
+      derivative = initialSlope * envelope * (
+        Math.cos(dampedOmega * elapsed) - damping * omega * Math.sin(dampedOmega * elapsed) / dampedOmega
+      );
+    } else if (damping <= 1 + 1e-8) {
+      const envelope = Math.exp(-omega * elapsed);
+      deviation = initialSlope * elapsed * envelope;
+      derivative = initialSlope * envelope * (1 - omega * elapsed);
+    } else {
+      const root = Math.sqrt(damping ** 2 - 1);
+      const slowPole = -omega * (damping - root);
+      const fastPole = -omega * (damping + root);
+      const coefficient = initialSlope / (slowPole - fastPole);
+      deviation = coefficient * (Math.exp(slowPole * elapsed) - Math.exp(fastPole * elapsed));
+      derivative = coefficient * (slowPole * Math.exp(slowPole * elapsed) - fastPole * Math.exp(fastPole * elapsed));
+    }
+    outputDeviation.push(deviation);
+    controllerCurrent.push(options.loadStep + options.capacitance * derivative);
+    loadCurrent.push(options.loadStep);
+  }
+
+  return {
+    title: options.title,
+    disclosure: options.disclosure,
+    x,
+    xLabel: 'Time',
+    xUnit: 's',
+    signals: [
+      { name: 'ΔvOUT', unit: 'V', values: outputDeviation, color: '#f061c8', marker: 'diamond' },
+      { name: 'ΔiLOAD', unit: 'A', values: loadCurrent, color: '#ff8a4c', dash: [8, 5], marker: 'square' },
+      { name: 'Controller current response', unit: 'A', values: controllerCurrent, color: '#36c7d8', dash: [3, 4], marker: 'circle' },
+    ],
+    events: [{ x: stepTime, label: `+${formatEngineering(options.loadStep, 'A')} averaged load step`, kind: 'load' }],
+  };
+};
 
 const seededNoise = (seed: number): (() => number) => {
   let state = seed >>> 0 || 0x6d2b79f5;
@@ -369,6 +480,8 @@ const capacitorLab = (parameters: Readonly<Record<string, number>>, seed: number
   const esr = Math.max(value(parameters, 'esr', 5) * 1e-3, 0);
   const esl = Math.max(value(parameters, 'esl', 0) * 1e-9, 0);
   const loadStep = value(parameters, 'loadStep', 5);
+  const recoveryFrequency = value(parameters, 'recoveryFrequency', 35) * 1e3;
+  const recoveryDamping = value(parameters, 'recoveryDamping', 0.7);
   const stepTime = point.period * 4;
   const simulation = simulatePwmBuck(point, {
     capacitance,
@@ -389,6 +502,16 @@ const capacitorLab = (parameters: Readonly<Record<string, number>>, seed: number
   const rippleFrequency = effectiveRippleFrequency(point.fs, point.phases);
   const capacitiveRipple = summedRipple / (8 * rippleFrequency * capacitance);
   const esrRipple = summedRipple * esr;
+  const recoveryPlot = secondOrderRecoveryPlot({
+    title: 'Separate averaged control-loop recovery cross-check',
+    disclosure: `This is a separate linear, averaged second-order disturbance model (fn=${formatEngineering(recoveryFrequency, 'Hz')}, ζ=${recoveryDamping.toFixed(2)}). It does not feed back into, splice onto, or alter the switched open-loop trace above; saturation, delay, switching ripple, and controller-specific limits are excluded.`,
+    naturalFrequency: recoveryFrequency,
+    damping: recoveryDamping,
+    capacitance,
+    loadStep,
+  });
+  const recoveryDeviation = recoveryPlot.signals.find((signal) => signal.name === 'ΔvOUT')?.values ?? [];
+  const predictedTrough = recoveryDeviation.length > 0 ? Math.min(...recoveryDeviation) : 0;
   return {
     x,
     xLabel: 'Time',
@@ -403,18 +526,21 @@ const capacitorLab = (parameters: Readonly<Record<string, number>>, seed: number
       { label: 'ESR estimate', value: esrRipple, unit: 'V' },
       { label: 'Dominant estimate', value: esrRipple > capacitiveRipple ? 'ESR' : 'Capacitance' },
       { label: 'Immediate charge deficit', value: loadStep / capacitance, unit: 'V/s', tone: loadStep > 0 ? 'warning' : 'normal' },
+      { label: 'Averaged recovery trough', value: predictedTrough, unit: 'V' },
+      { label: 'Recovery fn / damping', value: `${formatEngineering(recoveryFrequency, 'Hz')} / ${recoveryDamping.toFixed(2)}` },
       { label: 'Effective RK4 step', value: simulation.effectiveStep, unit: 's' },
     ],
     events: [{ x: stepTime, label: `+${formatEngineering(loadStep, 'A')} load`, kind: 'load' }],
     expectedPrediction: esrRipple > capacitiveRipple ? 'ESR' : 'capacitance',
-    summary: `The terminal ripple is separated into capacitor-state motion and the algebraic ESR/optional ESL contributions.`,
+    summary: `The primary switched trace separates capacitor-state motion from the algebraic ESR/optional ESL contributions. The second plot independently cross-checks how an explicitly reduced-order averaged voltage loop could recover from the same load step.`,
     discrepancyHint: 'The familiar Δi/(8fC) expression assumes a single triangular capacitor-current waveform; multiphase cancellation and the load event change that shape.',
     warnings: [
       ...simulation.warnings,
       ...(esl > 0 ? ['ESL is an output-only first-difference estimate; it does not feed back into the state equations or model an ESL resonance.'] : []),
-      ...(loadStep > 0 ? ['The load-step interval is open loop: charge-deficit droop is physical, but controller recovery is intentionally excluded from this switched power-stage trace.'] : []),
+      ...(loadStep > 0 ? ['The switched power-stage trace remains open loop. Control recovery is intentionally isolated in the supplemental averaged plot so the two abstraction levels are never combined into one waveform.'] : []),
     ],
     seed,
+    supplementalPlots: [recoveryPlot],
   };
 };
 
@@ -523,7 +649,10 @@ const bodeLab = (id: 'pole-zero' | 'crossover-tuning' | 'error-amplifier', param
     const q = Math.max(value(parameters, 'plantQ', 1.2), 0.1);
     const capacitance = 100e-6;
     const inductance = 1 / ((2 * Math.PI * resonance) ** 2 * capacitance);
-    plant = { vin: 12, inductance, capacitance, loadResistance: q * Math.sqrt(inductance / capacitance), capacitorEsr: 2e-3 };
+    // Keep the user-selected resonance and Q exact in the compensation labs.
+    // ESR is explored independently in the pole/zero lab; including it here
+    // would move both denominator frequency and damping away from the controls.
+    plant = { vin: 12, inductance, capacitance, loadResistance: q * Math.sqrt(inductance / capacitance), capacitorEsr: 0 };
     modulatorGain = 1;
     feedbackGain = 0.2;
     if (id === 'error-amplifier') {
@@ -588,8 +717,28 @@ const bodeLab = (id: 'pole-zero' | 'crossover-tuning' | 'error-amplifier', param
   const warnings: string[] = id === 'crossover-tuning' && crossover !== null && crossover > fs / 5
     ? ['Crossover approaches the switching frequency. This averaged model omits sampling, delay, and switching sidebands; no universal fs ratio guarantees validity.']
     : [];
+  const phaseMarginMapsToSecondOrder = phaseMargin !== null && phaseMargin > 0 && phaseMargin < 89.5;
+  const reducedDamping = phaseMarginMapsToSecondOrder
+    ? dampingFromPhaseMargin(phaseMargin)
+    : phaseMargin !== null && phaseMargin >= 89.5 ? 1 : 0.15;
+  const reducedNaturalFrequency = crossover === null
+    ? buckResonantFrequency(plant)
+    : naturalFrequencyFromCrossover(crossover, reducedDamping);
+  const crossoverLoadStep = value(parameters, 'loadStep', 5);
+  const crossoverRecoveryPlot = id === 'crossover-tuning'
+    ? secondOrderRecoveryPlot({
+        title: 'Margin-derived averaged load-step cross-check',
+        disclosure: `This separate reduced-order cross-check uses the measured loop crossover ${phaseMarginMapsToSecondOrder ? 'and maps its phase margin' : 'but cannot map the selected phase margin outside the canonical 0–90° range; critical/low damping is used only as a visible placeholder'} in a canonical second-order model (fn=${formatEngineering(reducedNaturalFrequency, 'Hz')}, ζ=${reducedDamping.toFixed(3)}). It uses C=${formatEngineering(plant.capacitance, 'F')} and a ${formatEngineering(crossoverLoadStep, 'A')} load step. It is not an inverse transform of the full plotted Type III loop and excludes saturation, switching, sampling, and slew limits.`,
+        naturalFrequency: reducedNaturalFrequency,
+        damping: reducedDamping,
+        capacitance: plant.capacitance,
+        loadStep: crossoverLoadStep,
+      })
+    : null;
   if (margins.gainCrossovers.length > 1) warnings.push(`The loop has ${margins.gainCrossovers.length} unity-gain crossings. The reported phase margin is the lowest-margin downward crossing, not the first crossing encountered.`);
   if (id === 'error-amplifier') warnings.push('Component mapping uses the high-op-amp-gain Hcomp≈1/β approximation from TI SLVA301 Figure 12. Verify finite open-loop gain and GBW for a selected amplifier or controller.');
+  if (id === 'crossover-tuning') warnings.push('The supplemental transient is a margin-derived canonical second-order cross-check, not the exact time-domain response of the full fifth-order loop. Use it to test damping intuition; use a full averaged or switched transient model for design validation.');
+  if (id === 'crossover-tuning' && phaseMargin !== null && !phaseMarginMapsToSecondOrder) warnings.push(`The selected ${phaseMargin.toFixed(1)}° phase margin cannot be mapped to the canonical second-order 0–90° relationship. The supplemental plot therefore uses ${reducedDamping === 1 ? 'critical' : 'low'} damping as an explicitly disclosed placeholder rather than inventing a damping ratio.`);
   return {
     x: frequency,
     xLabel: 'Frequency',
@@ -612,6 +761,14 @@ const bodeLab = (id: 'pole-zero' | 'crossover-tuning' | 'error-amplifier', param
         value: switchingSeparation ?? 'undefined without crossover',
         unit: switchingSeparation === null ? undefined : '×',
         tone: switchingSeparation === null ? 'warning' as const : switchingSeparation >= 10 ? 'good' as const : switchingSeparation >= 5 ? 'warning' as const : 'danger' as const,
+      }, {
+        label: 'Reduced-order damping ζ',
+        value: reducedDamping,
+        tone: reducedDamping >= 0.5 ? 'good' as const : reducedDamping >= 0.3 ? 'warning' as const : 'danger' as const,
+      }, {
+        label: 'Reduced-order natural frequency',
+        value: reducedNaturalFrequency,
+        unit: 'Hz',
       }] : []),
       { label: 'Phase margin', value: phaseMargin ?? 'undefined', unit: phaseMargin === null ? undefined : 'deg', tone: phaseMargin === null ? 'warning' : phaseMargin >= 45 ? 'good' : phaseMargin >= 30 ? 'warning' : 'danger' },
       { label: 'Gain margin', value: margins.gainMarginDb ?? 'No −180° crossing', unit: margins.gainMarginDb === null ? undefined : 'dB' },
@@ -630,6 +787,7 @@ const bodeLab = (id: 'pole-zero' | 'crossover-tuning' | 'error-amplifier', param
       : 'Crossover and closed-loop bandwidth are related through the full loop shape, not defined as identical. This averaged view cannot predict all sampled switching behavior.',
     warnings,
     seed,
+    ...(crossoverRecoveryPlot ? { supplementalPlots: [crossoverRecoveryPlot] } : {}),
   };
 };
 
@@ -741,6 +899,7 @@ const cotPulseLab = (parameters: Readonly<Record<string, number>>, seed: number,
   const nominalOff = Math.max(appliedTon * (1 - point.duty) / point.duty, minOff);
   const nominalPeriod = appliedTon + nominalOff + delay;
   const nominalFrequency = 1 / nominalPeriod;
+  const injectedPhaseReferenceAt = (((-phaseDegrees / 360) % 1) + 1) % 1 * nominalPeriod;
   const requestedStep = injectionChallenge
     ? Math.max(Math.min(appliedTon, minOff, Math.max(delay, 1e-12)) / 20, 0.5e-9)
     : value(parameters, 'dt', 2) * 1e-9;
@@ -751,6 +910,8 @@ const cotPulseLab = (parameters: Readonly<Record<string, number>>, seed: number,
   const x: number[] = [];
   const gate: number[] = [];
   const rippleSignal: number[] = [];
+  const naturalRippleTrace: number[] = [];
+  const injectedRippleTrace: number[] = [];
   const threshold: number[] = [];
   const phaseCurrent: number[] = [];
   const outputVoltage: number[] = [];
@@ -789,6 +950,8 @@ const cotPulseLab = (parameters: Readonly<Record<string, number>>, seed: number,
     x.push(time);
     gate.push(step.switchHigh ? 1 : 0);
     rippleSignal.push(step.comparatorInput);
+    naturalRippleTrace.push(natural * 1e3);
+    injectedRippleTrace.push(injected * 1e3);
     threshold.push(step.lowerThreshold);
     phaseCurrent.push(current);
     outputVoltage.push(vOut);
@@ -831,6 +994,7 @@ const cotPulseLab = (parameters: Readonly<Record<string, number>>, seed: number,
   if (integrationStep > requestedStep * (1 + 1e-12)) warnings.push(`Interactive COT run is capped near 12,000 integration intervals: effective grid step is ${formatEngineering(integrationStep, 's')} rather than the requested ${formatEngineering(requestedStep, 's')}; controller event boundaries remain explicit.`);
   if (time < endTime - 1e-15) warnings.push('The COT horizon ended at the defensive sample cap; displayed statistics cover only the simulated prefix.');
   if (injectionChallenge) warnings.push('The “emulated natural-ripple” control is an independent nominal-frequency triangle phase-locked to the test clock; it is not derived from capacitor ESR/current or actual pulse timing. The integrated output state is separate.');
+  warnings.push('The power-stage estimate uses a unidirectional diode-emulation clamp at iL=0 during off-time. Forced-synchronous reverse current is excluded rather than removed by numerical damping.');
   if (pulseStarts.length < 2) warnings.push('Fewer than two pulses were granted; mean switching frequency and jitter are undefined for this comparator waveform.');
   return {
     x,
@@ -838,6 +1002,10 @@ const cotPulseLab = (parameters: Readonly<Record<string, number>>, seed: number,
     xUnit: 's',
     signals: [
       { name: 'feedback + ripple', unit: 'V', values: rippleSignal, color: '#36c7d8', marker: 'circle' },
+      ...(injectionChallenge ? [
+        { name: 'emulated natural ripple', unit: 'mV', values: naturalRippleTrace, color: '#5bd26a', dash: [10, 4, 2, 4], marker: 'circle' as const },
+        { name: 'injected ripple', unit: 'mV', values: injectedRippleTrace, color: '#9b8cff', dash: [2, 3], marker: 'diamond' as const },
+      ] : []),
       { name: 'threshold', unit: 'V', values: threshold, color: '#f2f5f7', dash: [8, 5], marker: 'square' },
       { name: 'one-shot / gate', unit: 'logic', values: gate, color: '#ffc400', dash: [3, 4], marker: 'diamond' },
       { name: 'iL estimate', unit: 'A', values: phaseCurrent, color: '#f061c8', dash: [10, 4, 2, 4], marker: 'circle' },
@@ -853,8 +1021,19 @@ const cotPulseLab = (parameters: Readonly<Record<string, number>>, seed: number,
       { label: 'Effective integration grid', value: integrationStep, unit: 's' },
       { label: 'Current-limit terminations', value: controllerState.currentLimitStopCount },
       { label: 'On-time law', value: useAdaptiveOnTime ? 'Adaptive VOUT/(VIN·fNOM)' : 'Fixed one-shot' },
+      { label: 'Light-load conduction policy', value: 'Unidirectional diode-emulation clamp at iL=0' },
+      ...(injectionChallenge ? [
+        { label: 'Emulated natural ripple', value: naturalRipple, unit: 'mV pp' },
+        { label: 'Injected ripple', value: injectedRipple, unit: 'mV pp' },
+        { label: 'Injected-ripple phase', value: phaseDegrees, unit: 'deg' },
+        { label: 'First injected-ramp reset', value: injectedPhaseReferenceAt, unit: 's' },
+      ] satisfies LabMetric[] : []),
     ],
     events: ([
+      ...(injectionChallenge ? [
+        { x: 0, label: 'emulated-ripple phase reference', kind: 'edge' as const },
+        { x: injectedPhaseReferenceAt, label: `injected-ripple ${phaseDegrees.toFixed(0)}° reference`, kind: 'edge' as const },
+      ] : []),
       ...requests.map((request, index) => ({ x: request, label: `request ${index + 1}`, kind: 'request' as const })),
       ...pulseStarts.map((start, index) => ({ x: start, label: `pulse ${index + 1}`, kind: 'grant' as const })),
       ...pulseEnds.map((end, index) => ({ x: end.time, label: `${end.reason} end ${index + 1}`, kind: 'edge' as const })),
@@ -877,7 +1056,10 @@ const controlComparisonLab = (parameters: Readonly<Record<string, number>>, seed
   const delay = value(parameters, 'delay', 80) * 1e-9;
   const noise = value(parameters, 'noise', 2) * 1e-3;
   const random = seededNoise(seed);
-  const x = linspace(0, 300e-6, 1001);
+  const observationTime = 300e-6;
+  const requiredSampleRate = Math.max(20 * point.fs, 40 * bandwidth);
+  const sampleCount = Math.max(1001, Math.ceil(observationTime * requiredSampleRate) + 1);
+  const x = linspace(0, observationTime, sampleCount);
   const stepTime = 70e-6;
   const commonNoise = x.map(() => noise * random());
   const response = (mode: 'vm' | 'pcm' | 'cot'): number[] => {
@@ -906,9 +1088,33 @@ const controlComparisonLab = (parameters: Readonly<Record<string, number>>, seed
   const vm = response('vm');
   const pcm = response('pcm');
   const cot = response('cot');
+  const vmDutyCommand = vm.map((sample) => clamp(point.duty + 0.55 * (point.vout - sample) / Math.max(point.vout, 1e-9), 0, 1));
+  const pcmSenseRamp = x.map((time, index) => {
+    const cyclePosition = (time % point.period) / point.period;
+    const inductorComponent = point.phaseAverage + point.ripple * dutyTriangle(cyclePosition, point.duty);
+    const outerCommandComponent = 0.35 * point.phaseAverage * (point.vout - (pcm[index] ?? point.vout)) / Math.max(point.vout, 1e-9);
+    const artificialRampEquivalent = point.ripple * 0.12 * cyclePosition;
+    return Math.max(0, inductorComponent + outerCommandComponent + artificialRampEquivalent);
+  });
+  let cotTimingPhase = 0;
+  const cotPulseRequests = x.map((time, index) => {
+    const previousTime = x[index - 1] ?? time;
+    const previousCycle = Math.floor(cotTimingPhase);
+    const outputError = (point.vout - (cot[index] ?? point.vout)) / Math.max(point.vout, 1e-9);
+    const skipFactor = scenario === 5 ? 1 / 3 : 1;
+    const delayAdjustedBaseFrequency = 1 / (point.period + delay);
+    const variableFrequency = delayAdjustedBaseFrequency * skipFactor * clamp(1 + 0.8 * outputError, 0.55, 1.45);
+    cotTimingPhase += variableFrequency * Math.max(time - previousTime, 0);
+    return index === 0 || Math.floor(cotTimingPhase) > previousCycle ? 1 : 0;
+  });
+  const cotRequestTimes = cotPulseRequests.flatMap((request, index) => request > 0 ? [x[index] ?? 0] : []);
+  const cotMeanRequestFrequency = cotRequestTimes.length > 1
+    ? (cotRequestTimes.length - 1) / Math.max((cotRequestTimes.at(-1) ?? 0) - (cotRequestTimes[0] ?? 0), 1e-18)
+    : null;
   const settling = (samples: readonly number[], eventTime: number) => {
     const tolerance = point.vout * 0.005;
-    const dwellSamples = 20;
+    const displayStep = (x[1] ?? observationTime) - (x[0] ?? 0);
+    const dwellSamples = Math.max(2, Math.ceil(5e-6 / Math.max(displayStep, 1e-18)));
     const index = samples.findIndex((_, i) => (x[i] ?? 0) >= eventTime && samples.slice(i, i + dwellSamples).length === dwellSamples && samples.slice(i, i + dwellSamples).every((sample) => Math.abs(sample - point.vout) < tolerance));
     return index >= 0 ? (x[index] ?? eventTime) - eventTime : (x[x.length - 1] ?? eventTime) - eventTime;
   };
@@ -938,13 +1144,24 @@ const controlComparisonLab = (parameters: Readonly<Record<string, number>>, seed
       { name: 'Voltage mode', unit: 'V', values: vm, color: '#36c7d8', marker: 'circle' },
       { name: 'Peak current mode', unit: 'V', values: pcm, color: '#ffc400', dash: [8, 5], marker: 'square' },
       { name: 'Constant on-time', unit: 'V', values: cot, color: '#f061c8', dash: [3, 4], marker: 'diamond' },
+      { name: 'VM duty command', unit: 'normalized', values: vmDutyCommand, color: '#62a0ff', dash: [10, 4, 2, 4], marker: 'circle' },
+      { name: 'PCM sensed current + ramp', unit: 'A', values: pcmSenseRamp, color: '#ff8a4c', dash: [2, 3], marker: 'square' },
+      { name: 'COT pulse request', unit: 'logic', values: cotPulseRequests, color: '#5bd26a', dash: [6, 3], marker: 'diamond' },
     ],
     metrics: [
       ...Object.entries(performance).map(([label, metric]) => ({ label: `${label} ${performanceLabel}`, value: metric, unit: scenario === 3 || scenario === 5 ? 'V' : 's' })),
       { label: 'Scenario', value: ['Startup', 'Line step', 'Load step', 'Noise injection', 'Current limit', 'Light-load skipping'][scenario] ?? 'Unknown' },
       { label: 'VM / PCM nominal frequency', value: point.fs, unit: 'Hz' },
-      { label: 'COT mean-frequency estimate', value: point.fs * (1 - delay / Math.max(point.period, delay)), unit: 'Hz' },
+      { label: 'COT measured request frequency', value: cotMeanRequestFrequency ?? 'undefined', unit: cotMeanRequestFrequency === null ? undefined : 'Hz' },
+      { label: 'Displayed samples / nominal cycle', value: 1 / (point.fs * Math.max((x[1] ?? 0) - (x[0] ?? 0), 1e-18)), unit: 'samples' },
+      { label: 'Observation window', value: observationTime, unit: 's' },
       { label: 'Ideal duty baseline', value: point.duty * 100, unit: '%' },
+      { label: 'Voltage-mode timing', value: 'fixed clock starts; duty/ramp crossing ends' },
+      { label: 'Voltage-mode sensing / compensation', value: 'VOUT divider; outer voltage compensator; no modeled current inner loop' },
+      { label: 'Peak-current timing', value: 'fixed clock starts; sensed-current + slope-ramp crossing ends' },
+      { label: 'Peak-current sensing / compensation', value: 'phase current + artificial ramp; simplified inner current loop and outer voltage compensator' },
+      { label: 'COT timing', value: 'feedback/ripple comparator starts; one-shot expires to end' },
+      { label: 'COT sensing / compensation', value: 'VOUT/ripple timing signal; direct comparator model here, while servo/error-amplifier variants remain possible' },
     ],
     events: scenario === 0 || scenario === 3 || scenario === 5 ? [] : [{ x: stepTime, label: scenario === 1 ? 'input line step' : scenario === 4 ? 'current-limit demand' : `+${formatEngineering(loadStep, 'A')} load`, kind: 'load' }],
     expectedPrediction: best,
@@ -952,7 +1169,11 @@ const controlComparisonLab = (parameters: Readonly<Record<string, number>>, seed
       ? `${best} has the lowest ${performanceLabel} under this explicitly simplified controller set. That result is conditional, scenario-specific, and not a universal ranking.`
       : `${tiedBest.map(([label]) => label).join(', ')} are tied within the displayed model/sample resolution for ${performanceLabel}; there is no unique winner. The result is conditional, scenario-specific, and not a universal ranking.`,
     discrepancyHint: 'Identical power stages do not imply identical sensing, compensation, delay, light-load logic, or limiting. Change assumptions before drawing a mode-level conclusion.',
-    warnings: ['Response curves use visible normalized behavioral factors (speed VM/PCM/COT = 0.90/1.15/1.35; damping = 0.72/0.82/0.68). They are not commercial-controller implementations or a universal ranking.'],
+    warnings: [
+      'Response curves use visible normalized behavioral factors (speed VM/PCM/COT = 0.90/1.15/1.35; damping = 0.72/0.82/0.68). They are not commercial-controller implementations or a universal ranking.',
+      'The displayed VM duty command, PCM A-equivalent sensed ramp, and COT request impulses are representative educational timing signals generated from the same scenario. They do not form a transistor-level or vendor-specific controller simulation.',
+      ...(bandwidth * observationTime < 1 ? ['The fixed 300 µs observation window is shorter than one nominal loop-bandwidth cycle; settling metrics are window-limited at this operating point.'] : []),
+    ],
     seed,
   };
 };
@@ -1046,8 +1267,13 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
   const point = buckPoint(parameters);
   const strategy = clamp(Math.round(value(parameters, 'strategy', 2)), 0, 5);
   const minSeparation = value(parameters, 'minSeparation', 180) * 1e-9;
+  const dropDeadline = value(parameters, 'dropDeadline', 400) * 1e-9;
   const jitter = value(parameters, 'requestJitter', 30) * 1e-9;
   const imbalance = value(parameters, 'imbalance', 15) / 100;
+  const phaseShedding = value(parameters, 'phaseShedding', 1) >= 0.5 && point.phases > 1;
+  const phaseReentryAt = value(parameters, 'phaseReentryAfter', 6) * point.period;
+  const activeBeforeReentry = phaseShedding ? point.phases - 1 : point.phases;
+  const activePhaseCountAt = (time: number): number => phaseShedding && time < phaseReentryAt ? activeBeforeReentry : point.phases;
   const random = seededNoise(seed);
   const methods = ['ideal-fixed-spacing', 'first-eligible', 'round-robin', 'minimum-separation', 'current-priority', 'free-running'] as const;
   const method = methods[strategy] ?? 'round-robin';
@@ -1057,9 +1283,11 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
     minimumSeparation: minSeparation,
     basePeriod: point.period,
     currentPriority: 'lowest-current' as const,
+    maximumRequestAge: dropDeadline,
   };
   let state = createSchedulerState(config);
-  const requestEvents = Array.from({ length: 32 }, (_, index) => {
+  const nominalRequestCount = point.phases * 16;
+  const allRequestEvents = Array.from({ length: nominalRequestCount }, (_, index) => {
     const base = index * point.period / point.phases;
     const primary = { id: `r${index}-a`, desired: Math.max(0, base + random() * jitter), source: index % point.phases };
     const collision = index % 5 === 0
@@ -1067,12 +1295,19 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
       : [];
     return [primary, ...collision];
   }).flat().sort((a, b) => a.desired - b.desired || a.source - b.source);
-  type Request = (typeof requestEvents)[number];
+  const requestEvents = allRequestEvents.filter((request) => request.source < activePhaseCountAt(request.desired));
+  const inhibitedRequests = allRequestEvents.filter((request) => request.source >= activePhaseCountAt(request.desired));
+  type Request = (typeof allRequestEvents)[number];
   const grants: Array<{ time: number; phase: number; delayed: boolean; requestId: string }> = [];
-  const decisions: LabEvent[] = [];
+  const decisions: LabEvent[] = inhibitedRequests.map((request) => ({
+    x: request.desired,
+    label: `P${request.source + 1} denied: phase shed`,
+    phase: request.source,
+    kind: 'denied',
+  }));
   const queues: Request[][] = Array.from({ length: point.phases }, () => []);
   const lastStatus = new Map<string, 'waiting' | 'delayed'>();
-  const lastRequestTime = requestEvents[requestEvents.length - 1]?.desired ?? point.period;
+  const lastRequestTime = allRequestEvents[allRequestEvents.length - 1]?.desired ?? point.period;
   const flushEnd = lastRequestTime + point.period * 4;
   const fixedSlotTimes = method === 'ideal-fixed-spacing'
     ? Array.from({ length: Math.floor(flushEnd / (point.period / point.phases)) + 1 }, (_, index) => index * point.period / point.phases)
@@ -1116,9 +1351,24 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
       lastStatus.delete(request.id);
     });
     for (const decision of step.decisions) {
-      if (decision.status !== 'waiting' && decision.status !== 'delayed') continue;
       const request = heads.find((candidate) => candidate.source === decision.phase);
-      if (!request || lastStatus.get(request.id) === decision.status) continue;
+      if (!request) continue;
+      if (decision.status === 'denied') {
+        queues[decision.phase]?.shift();
+        lastStatus.delete(request.id);
+        decisions.push({
+          x: decisionTime,
+          label: `P${decision.phase + 1} denied: ${decision.reason}`,
+          phase: decision.phase,
+          kind: 'denied',
+        });
+        if ((queues[decision.phase]?.length ?? 0) > 0) {
+          addDecisionTime(decisionTime + Math.max(2e-15, point.period * 1e-9), decisionTime);
+        }
+        continue;
+      }
+      if (decision.status !== 'waiting' && decision.status !== 'delayed') continue;
+      if (lastStatus.get(request.id) === decision.status) continue;
       lastStatus.set(request.id, decision.status);
       decisions.push({
         x: decisionTime,
@@ -1131,6 +1381,7 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
     for (const request of nextHeads) {
       const eligibleAt = Math.max(request.desired, (state.lastGrantAt[request.source] ?? -Infinity) + point.period * 0.8);
       addDecisionTime(eligibleAt, decisionTime);
+      addDecisionTime(request.desired + dropDeadline, decisionTime);
     }
     if (method === 'minimum-separation' && state.lastGlobalGrantAt !== null && nextHeads.length > 0) {
       addDecisionTime(state.lastGlobalGrantAt + minSeparation, decisionTime);
@@ -1138,7 +1389,7 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
   }
   grants.sort((a, b) => a.time - b.time || a.phase - b.phase);
   const pendingCount = queues.reduce((sum, queue) => sum + queue.length, 0);
-  const endTime = Math.max(grants[grants.length - 1]?.time ?? point.period, lastRequestTime, point.period) + point.period;
+  const endTime = Math.max(grants[grants.length - 1]?.time ?? point.period, lastRequestTime, phaseReentryAt, point.period) + point.period;
   const x = linspace(0, endTime, 1601);
   const grantSignals: SignalSeries[] = Array.from({ length: point.phases }, (_, phase) => ({
     name: `grant P${phase + 1}`,
@@ -1158,8 +1409,26 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
     dash: [2 + phase, 5],
     marker: 'diamond',
   }));
+  const phaseActivitySignals: SignalSeries[] = [
+    {
+      name: 'active phase count',
+      unit: 'phases',
+      values: x.map((time) => activePhaseCountAt(time)),
+      color: '#f2f5f7',
+      dash: [10, 4, 2, 4],
+      marker: 'square',
+    },
+    {
+      name: `enable P${point.phases}`,
+      unit: 'logic',
+      values: x.map((time) => point.phases <= activePhaseCountAt(time) ? 1 : 0),
+      color: '#ff8a4c',
+      dash: [3, 4],
+      marker: 'diamond',
+    },
+  ];
   const counts = Array.from({ length: point.phases }, (_, phase) => grants.filter((grant) => grant.phase === phase).length);
-  const requestCounts = Array.from({ length: point.phases }, (_, phase) => requestEvents.filter((request) => request.source === phase).length);
+  const requestCounts = Array.from({ length: point.phases }, (_, phase) => allRequestEvents.filter((request) => request.source === phase).length);
   const minActual = grants.length > 1
     ? grants.slice(1).reduce((minimum, grant, index) => Math.min(minimum, grant.time - (grants[index]?.time ?? 0)), Infinity)
     : null;
@@ -1174,36 +1443,53 @@ const schedulerLab = (parameters: Readonly<Record<string, number>>, seed: number
   const delayedGrants = grants.filter((grant) => grant.delayed).length;
   const waitingTransitions = decisions.filter((decision) => decision.kind === 'waiting').length;
   const delayedTransitions = decisions.filter((decision) => decision.kind === 'delayed').length;
+  const deniedPulses = state.deniedCount.reduce((sum, count) => sum + count, 0) + inhibitedRequests.length;
   const strategies = ['Ideal fixed spacing', 'First eligible', 'Round robin', 'Minimum separation', 'Current priority', 'Simplified free running'] as const;
   const elapsed = Math.max(endTime, 1e-12);
   return {
     x,
     xLabel: 'Time',
     xUnit: 's',
-    signals: [...grantSignals, ...prioritySignals],
+    signals: [...grantSignals, ...prioritySignals, ...phaseActivitySignals],
     metrics: [
       { label: 'Strategy', value: strategies[strategy] ?? 'Unknown' },
-      { label: 'Pulse requests', value: requestEvents.length },
+      { label: 'Pulse requests', value: allRequestEvents.length },
       { label: 'Granted pulses', value: grants.length },
+      { label: 'Denied pulses', value: deniedPulses, tone: deniedPulses > 0 ? 'danger' : 'good' },
       { label: 'Delayed grants', value: delayedGrants, tone: delayedGrants > 0 ? 'warning' : 'good' },
       { label: 'Still pending', value: pendingCount, tone: pendingCount > 0 ? 'danger' : 'good' },
-      { label: 'Status transitions', value: `${waitingTransitions} waiting · ${delayedTransitions} delayed` },
+      { label: 'Status transitions', value: `${waitingTransitions} waiting · ${delayedTransitions} delayed · ${deniedPulses} denied` },
       { label: 'Minimum actual separation', value: minActual ?? 'undefined', unit: minActual === null ? undefined : 's' },
       { label: 'Grant-allocation Jain index', value: fairness, tone: fairness > 0.9 ? 'good' : 'warning' },
       { label: 'Service-ratio Jain index', value: serviceFairness, tone: serviceFairness > 0.9 ? 'good' : 'warning' },
       { label: 'Per-phase frequency', value: counts.map((count, phase) => `P${phase + 1} ${(count / elapsed / 1e3).toFixed(1)} kHz`).join(' · ') },
       { label: 'Priority current snapshot', value: priorityCurrents.map((current, phase) => `P${phase + 1} ${current.toFixed(3)} A`).join(' · ') },
+      { label: 'Observation window', value: endTime, unit: 's' },
+      { label: 'Flush allowance', value: flushEnd - lastRequestTime, unit: 's' },
+      { label: 'Per-phase re-eligibility', value: 0.8 * point.period, unit: 's' },
+      { label: 'Displayed grant width', value: 0.35 * point.duty * point.period, unit: 's' },
+      { label: 'Offered requests / phase', value: requestCounts.map((count, phase) => `P${phase + 1} ${count}`).join(' · ') },
+      { label: 'Request generator', value: `${nominalRequestCount} nominal events (${16} per phase); coincident request every fifth event` },
+      { label: 'Phase-shedding state', value: phaseShedding ? `P${point.phases} shed, then re-enabled` : 'All phases enabled' },
+      { label: 'Phase re-entry', value: phaseShedding ? phaseReentryAt : 'disabled', unit: phaseShedding ? 's' : undefined },
+      { label: 'Requests inhibited while shed', value: inhibitedRequests.length, tone: inhibitedRequests.length > 0 ? 'warning' : 'normal' },
       { label: 'Core collision count', value: state.collisionCount, tone: state.collisionCount === 0 ? 'good' : 'warning' },
     ],
     events: ([
-      ...requestEvents.map((request) => ({ x: request.desired, label: `P${request.source + 1} request`, phase: request.source, kind: 'request' as const })),
+      ...allRequestEvents.map((request) => ({ x: request.desired, label: `P${request.source + 1} request`, phase: request.source, kind: 'request' as const })),
       ...grants.map((grant) => ({ x: grant.time, label: `P${grant.phase + 1} ${grant.delayed ? 'delayed grant' : 'grant'}`, phase: grant.phase, kind: 'grant' as const })),
       ...decisions,
+      ...(phaseShedding ? [
+        { x: 0, label: `phase shed: ${activeBeforeReentry} of ${point.phases} active`, phase: point.phases - 1, kind: 'edge' as const },
+        { x: phaseReentryAt, label: `P${point.phases} phase re-entry`, phase: point.phases - 1, kind: 'edge' as const },
+      ] : []),
     ] satisfies LabEvent[]).sort((a, b) => a.x - b.x || a.label.localeCompare(b.label)),
     expectedPrediction: strategy === 2 ? `phase ${state.nextRoundRobinPhase + 1}` : 'depends on visible eligibility and priority',
-    summary: `${strategies[strategy] ?? 'The scheduler'} grants ${grants.length} of ${requestEvents.length} requests with grant-allocation Jain index ${fairness.toFixed(3)} and served/request Jain index ${serviceFairness.toFixed(3)}. These are educational arbitration rules, not a universal commercial scheduler.`,
+    summary: `${strategies[strategy] ?? 'The scheduler'} grants ${grants.length}, explicitly denies ${deniedPulses} request(s) through deadline or phase-enable logic, and leaves ${pendingCount} pending from ${allRequestEvents.length} requests. Grant-allocation Jain index is ${fairness.toFixed(3)} and served/request Jain index is ${serviceFairness.toFixed(3)}. These are educational arbitration rules, not a universal commercial scheduler.`,
     discrepancyHint: 'The round-robin answer is the stored pointer assuming that phase is eligible; otherwise arbitration advances to the next eligible phase. Allocation equality and equal service ratios are different fairness questions.',
     warnings: [
+      `The educational workload uses ${nominalRequestCount} nominal request events (16 per phase), injects a coincident request every fifth event, enforces per-phase re-eligibility at 0.8·T, and flushes for four additional periods. The displayed grant width is 0.35·D·T and does not alter arbitration.`,
+      ...(phaseShedding ? [`P${point.phases} requests are explicitly inhibited until the ${formatEngineering(phaseReentryAt, 's')} timed re-entry event. This simple enable gate does not implement a load-threshold hysteresis loop, soft current handoff, or a commercial phase manager.`] : []),
       ...(counts.some((count) => count === 0) ? ['At least one phase is starved in the displayed window.'] : []),
       ...(pendingCount > 0 ? [`${pendingCount} unique request(s) remain queued after the four-period flush window; they were not silently overwritten or counted as denied.`] : []),
     ],
@@ -1224,7 +1510,18 @@ const currentSharingLab = (parameters: Readonly<Record<string, number>>, seed: n
   const shareBandwidth = value(parameters, 'shareBandwidth', 5) * 1e3;
   const voltageBandwidth = value(parameters, 'voltageBandwidth', 50) * 1e3;
   const interactionRatio = shareBandwidth / Math.max(voltageBandwidth, 1);
-  const x = linspace(0, 2e-3, 1001);
+  const fastestBandwidth = Math.max(shareBandwidth, voltageBandwidth);
+  const slowestBandwidth = Math.min(shareBandwidth, voltageBandwidth);
+  const observationTime = 10 / (2 * Math.PI * slowestBandwidth);
+  const fastWindow = Math.min(observationTime, 10 / (2 * Math.PI * fastestBandwidth));
+  const fastGrid = linspace(0, fastWindow, 801);
+  const bandwidthRatio = fastestBandwidth / slowestBandwidth;
+  const slowGrid = bandwidthRatio > 1 + 1e-12
+    ? Array.from({ length: 1200 }, (_, index) => fastWindow * (observationTime / fastWindow) ** ((index + 1) / 1200))
+    : [];
+  // The early uniform region resolves the faster loop; the logarithmic tail
+  // covers ten time constants of the slower loop without millions of points.
+  const x = [...fastGrid, ...slowGrid];
   const physicalBias = Array.from({ length: point.phases }, (_, phase) => {
     const normalized = (phase - (point.phases - 1) / 2) / Math.max(point.phases - 1, 1);
     const dcResistanceBias = -point.phaseAverage * normalized * (dcrMismatch + resistanceVariation + thermalVariation);
@@ -1241,7 +1538,9 @@ const currentSharingLab = (parameters: Readonly<Record<string, number>>, seed: n
   let balanceState = createCurrentBalanceState(point.phases);
   let actualCurrents = physicalBias.map((bias) => point.phaseAverage + bias);
   const traces = Array.from({ length: point.phases }, () => [] as number[]);
-  const trimTrace: number[] = [];
+  const sensedTraces = Array.from({ length: point.phases }, () => [] as number[]);
+  const trimTraces = Array.from({ length: point.phases }, () => [] as number[]);
+  const sharingErrorTrace: number[] = [];
   const voltageProxy: number[] = [];
   let finalBalance = updateCurrentBalance(controllerConfig, balanceState, actualCurrents, Math.max(x[1] ?? 1e-9, 1e-9));
   x.forEach((time, index) => {
@@ -1253,8 +1552,11 @@ const currentSharingLab = (parameters: Readonly<Record<string, number>>, seed: n
     finalBalance = updateCurrentBalance(controllerConfig, balanceState, measured, dt);
     balanceState = finalBalance.state;
     actualCurrents.forEach((current, phase) => traces[phase]?.push(current));
-    trimTrace.push(finalBalance.trims[0] ?? 0);
-    voltageProxy.push(point.vout + (interactionRatio >= 1 / 3 ? 0.01 * Math.sin(2 * Math.PI * voltageBandwidth * time) * Math.exp(-shareBandwidth * time) : 0));
+    measured.forEach((current, phase) => sensedTraces[phase]?.push(current));
+    finalBalance.trims.forEach((trim, phase) => trimTraces[phase]?.push(trim));
+    sharingErrorTrace.push(finalBalance.rmsSharingError);
+    const interactionDecay = 2 * Math.PI * Math.min(shareBandwidth, voltageBandwidth) * 0.35;
+    voltageProxy.push(point.vout + (interactionRatio >= 1 / 3 ? 0.01 * Math.sin(2 * Math.PI * voltageBandwidth * time) * Math.exp(-interactionDecay * time) : 0));
     const plantRate = 2 * Math.PI * Math.max(shareBandwidth, 10);
     actualCurrents = actualCurrents.map((current, phase) => {
       const normalized = (phase - (point.phases - 1) / 2) / Math.max(point.phases - 1, 1);
@@ -1271,6 +1573,12 @@ const currentSharingLab = (parameters: Readonly<Record<string, number>>, seed: n
     dash: phase % 2 === 0 ? undefined : [8, 5],
     marker: phase % 2 === 0 ? 'circle' : 'square',
   }));
+  const sensedCurrents: SignalSeries[] = sensedTraces.map((values, phase) => ({
+    name: `Isense P${phase + 1}`, unit: 'A', values,
+    color: COLORS[(phase + 3) % COLORS.length] as string,
+    dash: [2 + phase, 4],
+    marker: 'diamond',
+  }));
   const finalValues = currents.map((series) => series.values[series.values.length - 1] ?? 0);
   const localRipples = Array.from({ length: point.phases }, (_, phase) => {
     const normalized = (phase - (point.phases - 1) / 2) / Math.max(point.phases - 1, 1);
@@ -1278,34 +1586,75 @@ const currentSharingLab = (parameters: Readonly<Record<string, number>>, seed: n
     return ((point.vin - point.vout) / localInductance) * point.duty * point.period;
   });
   const mismatch = Math.max(...finalValues) - Math.min(...finalValues);
-  const balanceControl = {
-    name: 'Balance trim P1',
+  const balanceControls: SignalSeries[] = trimTraces.map((values, phase) => ({
+    name: `balance trim P${phase + 1}`,
     unit: 'A',
-    values: trimTrace,
-    color: '#f2f5f7',
-    dash: [3, 4] as const,
-    marker: 'diamond' as const,
+    values,
+    color: COLORS[(phase + 5) % COLORS.length] as string,
+    dash: [3 + phase, 5],
+    marker: phase % 2 === 0 ? 'diamond' : 'square',
+  }));
+  const sharingErrorSignal: SignalSeries = {
+    name: 'RMS sharing error',
+    unit: 'A',
+    values: sharingErrorTrace,
+    color: '#ffc400',
+    dash: [10, 4, 2, 4],
+    marker: 'circle',
+  };
+  const primaryLoopEnvelope: SignalSeries = {
+    name: 'primary-loop reference response',
+    unit: 'normalized',
+    values: x.map((time) => 1 - Math.exp(-2 * Math.PI * voltageBandwidth * time)),
+    color: '#36c7d8',
+    marker: 'circle',
+  };
+  const sharingLoopEnvelope: SignalSeries = {
+    name: 'sharing-loop reference response',
+    unit: 'normalized',
+    values: x.map((time) => 1 - Math.exp(-2 * Math.PI * shareBandwidth * time)),
+    color: '#f061c8',
+    dash: [8, 5],
+    marker: 'square',
   };
   const voltageSignal: SignalSeries = { name: 'Voltage-loop proxy', unit: 'V', values: voltageProxy, color: '#9b8cff', dash: [10, 4, 2, 4], marker: 'square' };
+  const finalSensedValues = sensedTraces.map((trace) => trace[trace.length - 1] ?? 0);
   return {
     x,
     xLabel: 'Time',
     xUnit: 's',
-    signals: [...currents, balanceControl, voltageSignal],
+    signals: [
+      ...currents,
+      ...sensedCurrents,
+      ...balanceControls,
+      sharingErrorSignal,
+      primaryLoopEnvelope,
+      sharingLoopEnvelope,
+      voltageSignal,
+    ],
     metrics: [
       { label: 'Final max-min mismatch', value: mismatch, unit: 'A', tone: mismatch < point.phaseAverage * 0.05 ? 'good' : 'warning' },
       { label: 'Sharing / voltage BW', value: interactionRatio, unit: 'ratio', tone: interactionRatio < 0.2 ? 'good' : interactionRatio < 0.5 ? 'warning' : 'danger' },
       { label: 'Initial mismatch', value: Math.max(...physicalBias) - Math.min(...physicalBias), unit: 'A' },
       { label: 'Final average current / phase', value: finalValues.map((current, phase) => `P${phase + 1} ${current.toFixed(3)} A`).join(' · ') },
+      { label: 'Final sensed current / phase', value: finalSensedValues.map((current, phase) => `P${phase + 1} ${current.toFixed(3)} A`).join(' · ') },
       { label: 'Estimated peak current / phase', value: finalValues.map((current, phase) => `P${phase + 1} ${(current + (localRipples[phase] ?? point.ripple) / 2).toFixed(3)} A`).join(' · ') },
       { label: 'Final measured RMS share error', value: finalBalance.rmsSharingError, unit: 'A' },
+      { label: 'Primary-loop reference time constant', value: 1 / (2 * Math.PI * voltageBandwidth), unit: 's' },
+      { label: 'Sharing-loop reference time constant', value: 1 / (2 * Math.PI * shareBandwidth), unit: 's' },
+      { label: 'Multi-rate observation window', value: observationTime, unit: 's' },
+      { label: 'Minimum display/integration step', value: x[1] ?? 0, unit: 's' },
+      { label: 'Loop-response disclosure', value: 'normalized first-order reference envelopes; interaction appears in current and voltage-proxy traces' },
       { label: 'Interaction indicator', value: interactionRatio > 0.35 ? 'Visible' : 'Separated' },
     ],
     events: [{ x: 0, label: 'balance enabled', kind: 'edge' }],
     expectedPrediction: interactionRatio >= 0.35 ? 'yes' : 'no',
     summary: `The simplified balancing loop reduces actual current error, but a sensor gain/offset error can bias the current it believes is balanced. Higher modeled DC path resistance biases that phase lower; inductance mismatch changes its ripple/peak estimate rather than being treated as a generic DC-sharing cause.`,
     discrepancyHint: 'A fast current-sharing loop can compete with the voltage loop or scheduler; “faster” is not automatically better.',
-    warnings: finalBalance.warnings,
+    warnings: [
+      ...finalBalance.warnings,
+      'The normalized primary- and sharing-loop traces are disclosed first-order bandwidth references, not independent switched simulations. A multi-rate grid resolves the faster loop early and then follows ten time constants of the slower loop; actual modeled sharing error, per-phase trim, and the voltage-loop proxy show the behavioral-loop interaction.',
+    ],
     seed,
   };
 };

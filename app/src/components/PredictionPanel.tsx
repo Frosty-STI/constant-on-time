@@ -10,6 +10,8 @@ interface PredictionPanelProps {
   readonly result: LabResult;
   readonly hasRun: boolean;
   readonly onRecord: (correct: boolean) => void;
+  readonly revision: number;
+  readonly onSubmittedChange: (submitted: boolean) => void;
 }
 
 const normalizePrediction = (input: string): string => input
@@ -36,7 +38,7 @@ export const matchesTextPrediction = (prediction: string, expected: string): boo
   return (PREDICTION_ALIASES[normalizedExpected] ?? [normalizedExpected]).includes(normalizedPrediction);
 };
 
-export const PredictionPanel = ({ lab, result, hasRun, onRecord }: PredictionPanelProps) => {
+export const PredictionPanel = ({ lab, result, hasRun, onRecord, revision, onSubmittedChange }: PredictionPanelProps) => {
   const [prediction, setPrediction] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [recorded, setRecorded] = useState(false);
@@ -45,7 +47,8 @@ export const PredictionPanel = ({ lab, result, hasRun, onRecord }: PredictionPan
     setPrediction('');
     setSubmitted(false);
     setRecorded(false);
-  }, [lab.id]);
+    onSubmittedChange(false);
+  }, [lab.id, onSubmittedChange, revision]);
 
   const numericExpected = typeof result.expectedPrediction === 'number';
   const numericPrediction = Number(prediction);
@@ -72,7 +75,7 @@ export const PredictionPanel = ({ lab, result, hasRun, onRecord }: PredictionPan
           <h2 id="prediction-title">{lab.prediction}</h2>
         </div>
         {submitted ? (
-          <button type="button" className="icon-text-button" onClick={() => { setSubmitted(false); setRecorded(false); setPrediction(''); }}>
+          <button type="button" className="icon-text-button" onClick={() => { setSubmitted(false); setRecorded(false); setPrediction(''); onSubmittedChange(false); }}>
             <RotateCcw aria-hidden="true" />Try again
           </button>
         ) : null}
@@ -90,7 +93,7 @@ export const PredictionPanel = ({ lab, result, hasRun, onRecord }: PredictionPan
             disabled={submitted}
           />
           <span>{lab.predictionUnit}</span>
-          <button type="button" className="primary-button" disabled={!prediction.trim() || submitted} onClick={() => setSubmitted(true)}>Submit prediction</button>
+          <button type="button" className="primary-button" disabled={!prediction.trim() || submitted} onClick={() => { setSubmitted(true); onSubmittedChange(true); }}>Submit prediction</button>
         </div>
       </div>
       {submitted && !hasRun ? <p className="prediction-wait">Prediction locked. Run the simulation to reveal the comparison.</p> : null}

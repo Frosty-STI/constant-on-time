@@ -14,6 +14,15 @@ describe('interactive laboratory models', () => {
         expect(signal.values, `${lab.id}:${signal.name}`).toHaveLength(result.x.length);
         expect(signal.values.every(Number.isFinite), `${lab.id}:${signal.name}`).toBe(true);
       }
+      for (const supplemental of result.supplementalPlots ?? []) {
+        expect(supplemental.title.length, `${lab.id}:supplemental title`).toBeGreaterThan(10);
+        expect(supplemental.disclosure.length, `${lab.id}:supplemental disclosure`).toBeGreaterThan(40);
+        expect(supplemental.x.length, `${lab.id}:${supplemental.title}`).toBeGreaterThan(1);
+        for (const signal of supplemental.signals) {
+          expect(signal.values, `${lab.id}:${supplemental.title}:${signal.name}`).toHaveLength(supplemental.x.length);
+          expect(signal.values.every(Number.isFinite), `${lab.id}:${supplemental.title}:${signal.name}`).toBe(true);
+        }
+      }
       expect(result.metrics.length, lab.id).toBeGreaterThan(0);
       expect(result.summary.length, lab.id).toBeGreaterThan(20);
     }
@@ -145,6 +154,44 @@ describe('interactive laboratory models', () => {
     const highFrequency = runLab(lab, { ...defaultParameters(lab), fs: 1000 });
     const separation = (result: typeof lowFrequency) => Number(result.metrics.find((metric) => metric.label === 'Switching / crossover separation')?.value);
     expect(separation(highFrequency)).toBeCloseTo(10 * separation(lowFrequency), 10);
+    expect(lowFrequency.metrics.find((metric) => metric.label === 'LC resonance')?.value).toBeCloseTo(22e3, 8);
+    expect(lowFrequency.metrics.find((metric) => metric.label === 'ESR zero')?.value).toBe('none');
+  });
+
+  it('keeps switched capacitor ripple and averaged recovery as visibly separate models', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'capacitor-ripple');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const defaults = defaultParameters(lab);
+    const slow = runLab(lab, { ...defaults, recoveryFrequency: 5, recoveryDamping: 0.7 });
+    const fast = runLab(lab, { ...defaults, recoveryFrequency: 100, recoveryDamping: 0.7 });
+    expect(slow.signals.map((signal) => signal.values)).toEqual(fast.signals.map((signal) => signal.values));
+    expect(slow.supplementalPlots).toHaveLength(1);
+    expect(slow.supplementalPlots?.[0]?.title).toMatch(/separate averaged control-loop/i);
+    expect(slow.supplementalPlots?.[0]?.disclosure).toMatch(/does not feed back.*switched/i);
+    const slowTrough = Math.min(...(slow.supplementalPlots?.[0]?.signals.find((signal) => signal.name === 'ΔvOUT')?.values ?? [0]));
+    const fastTrough = Math.min(...(fast.supplementalPlots?.[0]?.signals.find((signal) => signal.name === 'ΔvOUT')?.values ?? [0]));
+    expect(Math.abs(fastTrough)).toBeLessThan(Math.abs(slowTrough));
+  });
+
+  it('adds a margin-derived load-step cross-check without changing the full Bode sweep', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'crossover-tuning');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const defaults = defaultParameters(lab);
+    const smallStep = runLab(lab, { ...defaults, loadStep: 1 });
+    const largeStep = runLab(lab, { ...defaults, loadStep: 10 });
+    expect(smallStep.signals.map((signal) => signal.values)).toEqual(largeStep.signals.map((signal) => signal.values));
+    expect(smallStep.supplementalPlots?.[0]?.title).toMatch(/margin-derived averaged load-step/i);
+    expect(smallStep.supplementalPlots?.[0]?.disclosure).toMatch(/not an inverse transform.*full plotted Type III loop/i);
+    const trough = (result: typeof smallStep) => Math.min(...(result.supplementalPlots?.[0]?.signals.find((signal) => signal.name === 'ΔvOUT')?.values ?? [0]));
+    expect(trough(largeStep)).toBeCloseTo(10 * trough(smallStep), 10);
+    const damping = Number(smallStep.metrics.find((metric) => metric.label === 'Reduced-order damping ζ')?.value);
+    const crossover = Number(smallStep.metrics.find((metric) => metric.label === 'Crossover')?.value);
+    const naturalFrequency = Number(smallStep.metrics.find((metric) => metric.label === 'Reduced-order natural frequency')?.value);
+    expect(damping).toBeGreaterThan(0);
+    const crossoverToNaturalSquared = Math.sqrt(1 + 4 * damping ** 4) - 2 * damping ** 2;
+    expect(naturalFrequency).toBeCloseTo(crossover / Math.sqrt(crossoverToNaturalSquared), 8);
   });
 
   it('reports no unique control-mode winner when the selected metric is tied', () => {
@@ -214,9 +261,10 @@ describe('interactive laboratory models', () => {
     if (!lab) return;
     const result = runLab(lab, defaultParameters(lab), 11);
     const numericMetric = (label: string) => Number(result.metrics.find((metric) => metric.label === label)?.value);
-    expect(numericMetric('Pulse requests')).toBe(numericMetric('Granted pulses') + numericMetric('Still pending'));
+    expect(numericMetric('Pulse requests')).toBe(numericMetric('Granted pulses') + numericMetric('Denied pulses') + numericMetric('Still pending'));
     expect(result.events.every((event, index) => index === 0 || event.x >= (result.events[index - 1]?.x ?? -Infinity))).toBe(true);
     expect(result.events.some((event) => event.kind === 'waiting' || event.kind === 'delayed')).toBe(true);
+    expect(result.events.some((event) => event.kind === 'denied')).toBe(true);
   });
 
   it('places ideal scheduler grants on exact slots and reports the stored round-robin pointer', () => {
@@ -246,6 +294,100 @@ describe('interactive laboratory models', () => {
     const heavy = runLab(lab, { ...defaultParameters(lab), load: 100 });
     const priority = (result: typeof light) => result.signals.find((signal) => signal.name === 'priority sensed I P1')?.values;
     expect(priority(light)).not.toEqual(priority(heavy));
+  });
+
+  it('plots the natural and injected COT timing ripple as separate disclosed signals', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'ripple-injection');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const result = runLab(lab, { ...defaultParameters(lab), naturalRipple: 3, injectedRipple: 18, ripplePhase: 75 }, 7);
+    const signalNames = result.signals.map((signal) => signal.name);
+    expect(signalNames).toContain('emulated natural ripple');
+    expect(signalNames).toContain('injected ripple');
+    expect(result.metrics.find((metric) => metric.label === 'Injected-ripple phase')?.value).toBe(75);
+    expect(result.events.some((event) => event.label.includes('injected-ripple 75° reference'))).toBe(true);
+  });
+
+  it('exposes representative timing controls and sensing structures in the control comparison', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'control-comparison');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const result = runLab(lab, defaultParameters(lab), 13);
+    expect(result.signals.map((signal) => signal.name)).toEqual(expect.arrayContaining([
+      'VM duty command',
+      'PCM sensed current + ramp',
+      'COT pulse request',
+    ]));
+    expect(result.metrics.map((metric) => metric.label)).toEqual(expect.arrayContaining([
+      'Voltage-mode sensing / compensation',
+      'Peak-current sensing / compensation',
+      'COT sensing / compensation',
+    ]));
+    const delayed = runLab(lab, { ...defaultParameters(lab), delay: 2000 }, 13);
+    const requestFrequency = Number(delayed.metrics.find((metric) => metric.label === 'COT measured request frequency')?.value);
+    expect(requestFrequency).toBeGreaterThan(0);
+    expect(requestFrequency).toBeLessThan(500e3);
+  });
+
+  it('resolves representative control waveforms at the maximum switching frequency', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'control-comparison');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const result = runLab(lab, { ...defaultParameters(lab), fs: 3000, scenario: 5 }, 19);
+    const samplesPerCycle = Number(result.metrics.find((metric) => metric.label === 'Displayed samples / nominal cycle')?.value);
+    expect(samplesPerCycle).toBeGreaterThanOrEqual(20);
+    const voltageMode = result.signals.find((signal) => signal.name === 'Voltage mode')?.values ?? [];
+    const risingCrossings = voltageMode.slice(1).filter((sample, index) =>
+      sample >= 5 && (voltageMode[index] ?? sample) < 5).length;
+    expect(risingCrossings).toBeGreaterThan(150);
+    const cotRequests = result.signals.find((signal) => signal.name === 'COT pulse request')?.values ?? [];
+    expect(cotRequests.filter((sample) => sample > 0).length).toBeGreaterThan(150);
+  });
+
+  it('shows actual and sensed currents, balance response, and both loop references in the sharing lab', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'current-sharing');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const result = runLab(lab, { ...defaultParameters(lab), phases: 3 }, 17);
+    expect(result.signals.map((signal) => signal.name)).toEqual(expect.arrayContaining([
+      'Iavg P1',
+      'Isense P1',
+      'balance trim P1',
+      'RMS sharing error',
+      'primary-loop reference response',
+      'sharing-loop reference response',
+    ]));
+    expect(result.metrics.find((metric) => metric.label === 'Final sensed current / phase')).toBeDefined();
+  });
+
+  it('resolves high-bandwidth sharing interaction without aliasing it to zero', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'current-sharing');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    for (const bandwidth of [250, 500]) {
+      const result = runLab(lab, { ...defaultParameters(lab), shareBandwidth: bandwidth, voltageBandwidth: bandwidth }, 17);
+      const proxy = result.signals.find((signal) => signal.name === 'Voltage-loop proxy')?.values ?? [];
+      expect(Math.max(...proxy) - Math.min(...proxy)).toBeGreaterThan(1e-3);
+      expect(result.signals.every((signal) => signal.values.every(Number.isFinite))).toBe(true);
+      const steps = result.x.slice(1).map((sample, index) => sample - (result.x[index] ?? 0));
+      expect(Math.min(...steps)).toBeLessThan(1 / (40 * bandwidth * 1e3));
+    }
+  });
+
+  it('inhibits the shed phase and shows its deterministic timed re-entry', () => {
+    const lab = LABS.find((candidate) => candidate.id === 'cot-scheduler');
+    expect(lab).toBeDefined();
+    if (!lab) return;
+    const parameters = { ...defaultParameters(lab), phases: 4, requestJitter: 0, phaseShedding: 1, phaseReentryAfter: 4 };
+    const result = runLab(lab, parameters, 3);
+    const active = result.signals.find((signal) => signal.name === 'active phase count');
+    expect(active).toBeDefined();
+    expect(Math.min(...(active?.values ?? []))).toBe(3);
+    expect(Math.max(...(active?.values ?? []))).toBe(4);
+    const reentry = result.events.find((event) => event.label === 'P4 phase re-entry');
+    expect(reentry).toBeDefined();
+    expect(result.events.some((event) => event.phase === 3 && event.kind === 'denied' && event.x < (reentry?.x ?? 0))).toBe(true);
+    expect(result.events.some((event) => event.phase === 3 && event.kind === 'grant' && event.x >= (reentry?.x ?? Infinity))).toBe(true);
   });
 
   it('makes every disclosed mismatch or debugging control observable', () => {

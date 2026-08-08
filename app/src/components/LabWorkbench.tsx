@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { defaultParameters } from '../domain/labs';
 import type { LabDefinition } from '../domain/labs';
-import { formatEngineering } from '../domain/labModels';
+import { formatEngineering, type SupplementalPlot } from '../domain/labModels';
 import { nearestXIndex } from '../domain/comparison';
 import type { LabScenario } from '../domain/scenario';
 import { sourceById } from '../domain/sourceCatalog';
@@ -30,10 +30,26 @@ interface LabWorkbenchProps {
 
 const masteryOptions: readonly Mastery[] = ['not-started', 'developing', 'proficient', 'teach-back'];
 
+const SupplementalScope = ({ plot }: { readonly plot: SupplementalPlot }) => {
+  const [cursorIndex, setCursorIndex] = useState(0);
+  useEffect(() => setCursorIndex(0), [plot]);
+  return (
+    <section className="supplemental-scope" data-testid="supplemental-scope" aria-label={plot.title}>
+      <div className="model-boundary-note" role="note">
+        <strong>Separate model boundary</strong>
+        <p>{plot.disclosure}</p>
+      </div>
+      <ScopePlot result={plot} cursorIndex={cursorIndex} onCursorIndexChange={setCursorIndex} title={plot.title} testId="supplemental-scope-plot" />
+    </section>
+  );
+};
+
 export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, onSavePreset, onToggleBookmark }: LabWorkbenchProps) => {
   const [parameters, setParameters] = useState<Record<string, number>>(() => progress.simulatorPresets[lab.id] ?? defaultParameters(lab));
   const [scenarioSeed, setScenarioSeed] = useState(progress.seed);
   const [hasRun, setHasRun] = useState(false);
+  const [predictionSubmitted, setPredictionSubmitted] = useState(false);
+  const [predictionRevision, setPredictionRevision] = useState(0);
   const [presetMessage, setPresetMessage] = useState('');
   const [comparison, setComparison] = useState<{
     readonly result: NonNullable<ReturnType<typeof useLabSimulation>['result']>;
@@ -45,6 +61,8 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
     setParameters(progress.simulatorPresets[lab.id] ?? defaultParameters(lab));
     setScenarioSeed(progress.seed);
     setHasRun(false);
+    setPredictionSubmitted(false);
+    setPredictionRevision((current) => current + 1);
     setPresetMessage('');
     setComparison(null);
   }, [lab, progress.seed]);
@@ -58,12 +76,19 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
   const onParameterChange = useCallback((key: string, next: number) => {
     setParameters((current) => ({ ...current, [key]: next }));
     setHasRun(false);
+    setPredictionSubmitted(false);
+    setPredictionRevision((current) => current + 1);
     setPresetMessage('');
   }, []);
 
   const onRun = useCallback(() => {
-    if (!calculation.error && calculation.result) setHasRun(true);
-  }, [calculation.error, calculation.result]);
+    if (predictionSubmitted && !calculation.error && calculation.result) setHasRun(true);
+  }, [calculation.error, calculation.result, predictionSubmitted]);
+
+  const onPredictionSubmittedChange = useCallback((submitted: boolean) => {
+    setPredictionSubmitted(submitted);
+    if (!submitted) setHasRun(false);
+  }, []);
 
   const onPreset = useCallback(() => {
     onSavePreset(lab.id, parameters);
@@ -81,6 +106,8 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
     setParameters({ ...scenario.parameters });
     setScenarioSeed(scenario.seed);
     setHasRun(false);
+    setPredictionSubmitted(false);
+    setPredictionRevision((current) => current + 1);
     setPresetMessage(`Scenario imported and validated locally with seed 0x${scenario.seed.toString(16).padStart(8, '0')}.`);
   }, []);
 
@@ -97,7 +124,7 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
             <Bookmark aria-hidden="true" />{progress.bookmarks.includes(lab.id) ? 'Bookmarked' : 'Bookmark'}
           </button>
         </header>
-        {result ? <PredictionPanel lab={lab} result={result} hasRun={hasRun} onRecord={(correct) => onRecordPrediction(lab.id, correct)} /> : null}
+        {result ? <PredictionPanel lab={lab} result={result} hasRun={hasRun} revision={predictionRevision} onSubmittedChange={onPredictionSubmittedChange} onRecord={(correct) => onRecordPrediction(lab.id, correct)} /> : null}
         {lab.id === 'pspice-blocks' ? (
           <BlockPuzzle
             architecture={parameters.architecture ?? 0}
@@ -114,6 +141,7 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
             activeState={activeState}
             inductorCurrent={parameters.current ?? parameters.load ?? 1}
             running={playback.running}
+            revealed={hasRun}
             onStateChange={(state) => {
               onParameterChange('state', state);
               if (lab.id === 'current-path' && state === 4 && (parameters.current ?? 0) >= 0) onParameterChange('current', -Math.max(Math.abs(parameters.current ?? 5), 0.5));
@@ -124,7 +152,7 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
         {calculation.error ? (
           <section className="simulation-error" role="alert"><CircleAlert aria-hidden="true" /><div><h3>Cannot run this configuration</h3><p>{calculation.error}</p><button type="button" onClick={() => setParameters(defaultParameters(lab))}><RotateCcw aria-hidden="true" />Restore valid defaults</button></div></section>
         ) : null}
-        {result ? (
+        {result && hasRun ? (
           <>
             <ScenarioToolbar
               lab={lab}
@@ -154,10 +182,13 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
                 if (baselineX !== undefined) playback.setIndex(nearestXIndex(result.x, baselineX));
               }} title="Pinned baseline" /> : null}
             </div>
+            {result.supplementalPlots?.map((plot) => <SupplementalScope key={plot.title} plot={plot} />)}
           </>
         ) : null}
-        <EquationPanel equation={lab.equation} label={lab.equationLabel} />
-        {result ? (
+        {result && hasRun ? <EquationPanel equation={lab.equation} label={lab.equationLabel} /> : (
+          <section className="reveal-gate" aria-live="polite"><Lightbulb aria-hidden="true" /><p>Lock a prediction, then run the simulation to reveal waveforms, calculated metrics, derivation, and interpretation.</p></section>
+        )}
+        {result && hasRun ? (
           <section className="interpretation-panel">
             <div><Lightbulb aria-hidden="true" /><div><h3>Interpret the result</h3><p>{result.summary}</p></div></div>
             <div className="metric-grid">
@@ -183,17 +214,17 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
             })}</div>
           </details>
         </section>
-        <section className="transfer-question">
+        {hasRun ? <section className="transfer-question">
           <span>Transfer question</span>
           <h3>{lab.transferQuestion}</h3>
           <p>Answer at a different operating point. State the mechanism, equation assumptions, and PSpice consequence.</p>
-        </section>
-        <footer className="lab-mastery">
+        </section> : null}
+        {hasRun ? <footer className="lab-mastery">
           <div><CheckCircle2 aria-hidden="true" /><div><h3>Record concept mastery</h3><p>Use teach-back only after you can explain the waveform and model limits without the panel open.</p></div></div>
           <select aria-label="Lab mastery" value={mastery} onChange={(event) => onSetMastery(`lab-${lab.id}`, event.target.value as Mastery)}>
             {masteryOptions.map((option) => <option key={option} value={option}>{option.replace('-', ' ')}</option>)}
           </select>
-        </footer>
+        </footer> : null}
       </main>
       <div>
         <ParameterInspector
@@ -204,6 +235,8 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
           pending={calculation.pending}
           playback={playback}
           seed={scenarioSeed}
+          predictionSubmitted={predictionSubmitted}
+          revealed={hasRun}
           onParameterChange={onParameterChange}
           onRun={onRun}
           onSavePreset={onPreset}

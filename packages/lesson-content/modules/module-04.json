@@ -23,11 +23,11 @@
       "concepts": ["resonance", "gain peaking", "stability versus damping", "time-domain/frequency-domain relationship", "closed-loop bandwidth"],
       "physicalIntuition": "A stable loop can still ring badly. Phase margin is a local loop-shape clue, while zeros, gain slope, saturation, and large-signal current slew shape the actual transient.",
       "mathematicalDerivation": "Relate a canonical second-order damping ratio to peaking and step response only under that canonical form, then show why additional poles/zeros break a one-number mapping.",
-      "modelingConsequence": "The tuning lab exposes complete loop, closed-loop, and output-impedance frequency responses. A load-step cross-check remains a separate nonlinear validation task because this lab does not synthesize one from phase margin.",
+      "modelingConsequence": "The tuning lab exposes complete loop, closed-loop, and output-impedance frequency responses, then places a canonical second-order, margin-derived load-step prediction in a separate disclosed plot. That reduced-order trace is a teaching cross-check, not the required nonlinear switched validation.",
       "assumptions": ["second-order mappings are approximations outside canonical systems"],
       "citations": ["FPE3", "TI-SLVA301"],
       "evidenceLabels": ["exact", "approximation"],
-      "interaction": "Classify damping and predicted step-response tendencies from the displayed loop shape, then write the separate switched load-step validation you would run",
+      "interaction": "Classify damping from the displayed loop shape, compare it with the separate reduced-order load-step prediction, then specify the switched validation you would run",
       "transferQuestion": "Give two loops with similar phase margin but different transient peaking and identify the extra feature responsible."
     },
     {

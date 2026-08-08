@@ -38,7 +38,7 @@ The canonical metadata is `sources/manifest.json`; `sources/bibliography.csv` is
 - **TI-SNVA874.** Shows that a COT ripple network has its own dynamics and startup/short-circuit consequences.
 - **TI-SLVA546.** Detailed vendor frequency-response model with plant, divider, comparator/ripple dynamics, and fixed-on-time delay.
 - **TI-SLVAF11.** Connects output capacitance and an internal ripple-injection zero to D-CAP2/D-CAP3 stability boundaries.
-- **TI-SLYY205.** Accessible map of branded D-CAP generations and minimum-off-time/ripple tradeoffs.
+- **TI-SLYY205.** Vendor introduction to fixed-frequency advanced emulated current mode, with representative PCM and D-CAP2 comparisons. It is not a D-CAP3, minimum-off-time, or phase-shedding source.
 - **LIU-COT-2023.** Modern peer-reviewed small-signal COT analysis across duty ratio. Advanced and architecture-specific.
 - **SUN-COT-2019.** Representative pseudo-constant-frequency COT IC with internal inductor-current-ripple injection.
 - **ON-FAN23SV10M.** Product-level timing, protection, and light-load example. Use it to see concrete limits, never as the universal COT block diagram.

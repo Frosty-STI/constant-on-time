@@ -196,6 +196,31 @@ describe("N-phase PWM regression", () => {
     expect(events.some((event) => Math.abs(event - period / 2) < 1e-15)).toBe(true);
   });
 
+  it("reports right-continuous PWM modes at exact event-boundary samples", () => {
+    const config = baseConfig({
+      capacitance: 1,
+      phases: [{ inductance: 1e-6 }],
+      load: { initial: { kind: "constant-current", current: 1 } }
+    });
+    const pwm = { switchingFrequency: 1e6, dutyRatio: 0.4 };
+    const period = 1 / pwm.switchingFrequency;
+    const initial = createBuckPlantState(config, { vCap: 5, phaseCurrents: [1] });
+    const result = simulateBuckPlant(config, {
+      startState: initial,
+      stopTime: period,
+      maxStep: 0.3e-6,
+      driveAt: (time) => pwmDrivesAt(time, 1, pwm),
+      eventTimes: pwmEventTimes(0, period, 1, pwm)
+    });
+
+    const offEdge = result.samples.find((sample) => Math.abs(sample.time - 0.4e-6) < 1e-15);
+    const cycleEdge = result.samples.find((sample) => Math.abs(sample.time - period) < 1e-15);
+    expect(offEdge?.conductionModes[0]).toBe("low-side");
+    expect(offEdge?.switchNodeVoltages[0]).toBeCloseTo(0, 12);
+    expect(cycleEdge?.conductionModes[0]).toBe("high-side");
+    expect(cycleEdge?.switchNodeVoltages[0]).toBeCloseTo(12, 8);
+  });
+
   it("applies deliberate per-phase timing mismatch", () => {
     const pwm = { switchingFrequency: 1e6, dutyRatio: 0.4 };
     const period = 1 / pwm.switchingFrequency;

@@ -2,14 +2,15 @@ import { ArrowLeft, ArrowRight, Download, Focus, Table, ZoomIn, ZoomOut } from '
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 
-import type { LabEvent, LabResult } from '../domain/labModels';
+import type { LabEvent, LabPlot } from '../domain/labModels';
 import { formatEngineering } from '../domain/labModels';
 
 interface ScopePlotProps {
-  readonly result: LabResult;
+  readonly result: LabPlot;
   readonly cursorIndex: number;
   readonly onCursorIndexChange: (index: number) => void;
   readonly title?: string;
+  readonly testId?: string;
 }
 
 const eventPlugin = (events: readonly LabEvent[]): uPlot.Plugin => ({
@@ -60,7 +61,7 @@ const csvField = (value: string | number): string => {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };
 
-export const ScopePlot = ({ result, cursorIndex, onCursorIndexChange, title = 'Waveform workbench' }: ScopePlotProps) => {
+export const ScopePlot = ({ result, cursorIndex, onCursorIndexChange, title = 'Waveform workbench', testId = 'scope-plot' }: ScopePlotProps) => {
   const titleId = useId();
   const hostRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | null>(null);
@@ -202,7 +203,7 @@ export const ScopePlot = ({ result, cursorIndex, onCursorIndexChange, title = 'W
       <div
         ref={hostRef}
         className="scope-host"
-        data-testid="scope-plot"
+        data-testid={testId}
         role="img"
         aria-label={`Plot of ${result.signals.map((signal) => signal.name).join(', ')}`}
       />

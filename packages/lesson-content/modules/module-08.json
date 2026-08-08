@@ -23,7 +23,7 @@
       "concepts": ["outer voltage loop", "inner current behavior", "error-amplifier role", "compensation", "line feedforward", "transient response", "noise", "delay", "current limit", "light load", "min-times", "maximum duty"],
       "physicalIntuition": "The same inductor/capacitor can respond differently because pulse decisions see different signals and delays. No mode is universally faster, quieter, or simpler independent of implementation.",
       "mathematicalDerivation": "Use matched normalized response templates to isolate qualitative damping, delay, noise, limit, and light-load tendencies. This is a heuristic comparison, not substitution of three controller state machines into one switched plant.",
-      "modelingConsequence": "The current lab displays output-only, normalized damped-response proxies with scenario-specific metrics and visible exclusions. Controller waveforms, sensing, and compensation structures must be compared separately before making a design claim.",
+      "modelingConsequence": "The current lab displays normalized output-response proxies together with representative voltage-mode duty, peak-current sensed-ramp, and COT request waveforms plus explicit sensing/compensation disclosures. These are educational timing signals, not three complete commercial controllers, so a design claim still requires architecture-specific switched validation.",
       "assumptions": ["normalized heuristic response templates", "representative educational tendencies", "no universal superiority inference"],
       "citations": ["KAPAT-2020", "TI-SLVA301", "RIDLEY-1991", "TI-SLVA281"],
       "evidenceLabels": ["modeling choice", "architecture-specific"],

@@ -49,13 +49,12 @@
       "concepts": ["phase shedding", "startup sequencing", "phase addition", "phase removal", "transient response", "inductor slew limits", "input/output capacitor implications"],
       "physicalIntuition": "Fewer phases can reduce switching loss at light load but each active phase works harder. Adding a phase with the wrong initial current/timing can disturb the output.",
       "mathematicalDerivation": "Compare load demand with active-phase current and slew limits; use separate shed/re-entry thresholds to avoid chatter and define current ramp/soft-entry trajectories.",
-      "modelingConsequence": "Shedding is a state machine with hysteresis, minimum residency, and phase-current initialization—not an instantaneous change in N.",
+      "modelingConsequence": "The scheduler lab demonstrates a deliberately simple disabled-phase gate and timed re-entry with inhibited requests made visible. A production shedding state machine still needs load thresholds, hysteresis, minimum residency, and a soft phase-current initialization trajectory rather than an instantaneous change in N.",
       "assumptions": ["educational shedding policy", "switching-loss benefit not transistor-accurate"],
-      "citations": ["TI-SLVA882", "TI-SSZTC61", "TI-SLYY205"],
+      "citations": ["TI-SLVA882", "TI-SSZTC61"],
       "evidenceLabels": ["architecture-specific", "modeling choice"],
-      "interaction": "Phase-shed/re-entry transient exercise",
+      "interaction": "Scheduler phase-shed/re-entry timing exercise followed by a capstone soft-entry transient",
       "transferQuestion": "Why should a re-entering phase often ramp its contribution rather than immediately receive a full pulse schedule?"
     }
   ]
 }
-

@@ -252,7 +252,10 @@ export type CrossingDirection = "upward" | "downward" | "flat";
 export interface GainCrossover {
   /** Frequency where |T| = 1. */
   frequency: number;
-  /** 180 degrees plus the unwrapped loop phase at this crossing. */
+  /** Signed angular clearance to the nearest odd-180-degree (negative-real-
+   * axis) branch at this crossing, wrapped to (-180, 180]. This is the usual
+   * phase margin in a single-winding loop; multi-winding Nyquist assessment
+   * still requires the full contour rather than this scalar. */
   phaseMargin: number;
   /** Direction of magnitude travel with increasing frequency. */
   direction: CrossingDirection;
@@ -374,6 +377,11 @@ function valueAtCrossing(
   return interpolateValueAtLogFrequency(lower, upper, crossing.frequency, field);
 }
 
+function wrapToSigned180(angleDegrees: number): number {
+  const wrapped = ((angleDegrees + 180) % 360 + 360) % 360 - 180;
+  return Math.abs(wrapped + 180) < 1e-12 ? 180 : Math.abs(wrapped) < 1e-12 ? 0 : wrapped;
+}
+
 export function findLoopMargins(points: readonly BodePoint[]): LoopMargins {
   if (points.length < 2) throw new RangeError("at least two Bode points are required");
   for (let index = 0; index < points.length; index += 1) {
@@ -390,7 +398,7 @@ export function findLoopMargins(points: readonly BodePoint[]): LoopMargins {
   const gainCrossovers: GainCrossover[] = findTargetCrossings(points, 0, "magnitudeDb").map(
     (crossing) => ({
       frequency: crossing.frequency,
-      phaseMargin: 180 + valueAtCrossing(points, crossing, "phaseDegrees"),
+      phaseMargin: wrapToSigned180(180 + valueAtCrossing(points, crossing, "phaseDegrees")),
       direction: crossing.direction
     })
   );

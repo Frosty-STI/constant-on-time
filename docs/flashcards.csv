@@ -28,7 +28,7 @@ front,back,module,citations
 "Why does basic COT vary frequency?","Off-time changes with operating point and comparator crossings while on-time is fixed.",7,"TI-SLVA281"
 "What can generate COT feedback ripple?","Output ESR ripple, DCR-derived ripple, injected/synthetic ramps, or combinations.",7,"TI-SLVA453; SUN-COT-2019"
 "Why can COT need loop shaping?","Ripple, divider, delay, plant, and internal servo/error paths create dynamics even without an external COMP pin.",7,"TI-SLVA546; LIU-COT-2023"
-"What does minimum off-time constrain?","Maximum achievable pulse repetition/duty and next-pulse eligibility.",7,"TI-SLYY205; ON-FAN23SV10M"
+"What does minimum off-time constrain?","Maximum achievable pulse repetition/duty and next-pulse eligibility.",7,"ON-FAN23SV10M"
 "Are COT and current mode mutually exclusive?","No. One can describe timing while the other describes current-programmed control; hybrids exist.",8,"RIDLEY-1990-COT; KAPAT-2020"
 "Why is a matched control comparison conditional?","It compares explicit educational controller models, not every commercial implementation.",8,"KAPAT-2020"
 "Ideal N-phase spacing?","360 degrees divided by N, with phase k at 360 k/N degrees.",9,"TI-SLVA882"

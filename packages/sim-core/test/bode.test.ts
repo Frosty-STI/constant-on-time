@@ -153,10 +153,20 @@ describe("analytical Bode helpers", () => {
     ]);
     expect(margins.gainCrossovers).toHaveLength(2);
     expect(margins.gainCrossovers.map((crossing) => crossing.direction)).toEqual(["upward", "downward"]);
-    expect(margins.gainCrossovers[0]?.phaseMargin).toBeCloseTo(240, 8);
+    expect(margins.gainCrossovers[0]?.phaseMargin).toBeCloseTo(-120, 8);
     expect(margins.gainCrossovers[1]?.phaseMargin).toBeCloseTo(32.45, 8);
     expect(margins.crossoverFrequency).toBeCloseTo(10e3, 8);
     expect(margins.phaseMargin).toBeCloseTo(32.45, 8);
+  });
+
+  it("wraps multi-winding unity-crossing margin to signed negative-real-axis clearance", () => {
+    const marginAt = (phaseDegrees: number) => findLoopMargins([
+      { frequency: 10, magnitudeDb: 10, magnitude: 10 ** 0.5, phaseDegrees, response: { re: 1, im: 0 } },
+      { frequency: 100, magnitudeDb: -10, magnitude: 10 ** -0.5, phaseDegrees, response: { re: 1, im: 0 } }
+    ]).phaseMargin;
+    expect(marginAt(-500)).toBeCloseTo(40, 12);
+    expect(marginAt(-540)).toBeCloseTo(0, 12);
+    expect(marginAt(-580)).toBeCloseTo(-40, 12);
   });
 
   it("enumerates phase crossings and reports the lowest gain margin", () => {

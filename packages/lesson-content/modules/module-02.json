@@ -50,7 +50,7 @@
       "physicalIntuition": "Load current can jump; inductor current cannot. The capacitor supplies the deficit until phases slew, so smaller ripple is not automatically faster transient response.",
       "mathematicalDerivation": "Integrate Delta i(t) = iload - sum(iL) over the deficit window to get Delta Q and Delta V ≈ Delta Q/C before including ESR, ESL, and loop recovery. Bound di/dt from available inductor voltage and per-phase current limits.",
       "modelingConsequence": "The operating-point designer scores voltage droop, ripple, current stress, and slew feasibility separately. Multiple valid L/C/fs/N choices remain possible.",
-      "assumptions": ["charge-deficit estimate omits full closed-loop recovery"],
+      "assumptions": ["the switched charge-deficit trace is open loop; its separate recovery plot is a reduced-order averaged second-order cross-check"],
       "citations": ["TI-SLYT139", "TI-SLVA882", "FPE3"],
       "evidenceLabels": ["derived", "approximation", "heuristic"],
       "interaction": "Buck operating-point designer",

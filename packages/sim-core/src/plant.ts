@@ -527,7 +527,19 @@ export function simulateBuckPlant(
     const drives = options.driveAt(state.time + epsilon / 100, state);
     const result = stepBuckPlant(config, state, drives, target - state.time);
     state = result.state;
-    samples.push(result.sample);
+    // Integration uses the drive that applies over the open interval to the
+    // left of `target`. Cursor samples are intentionally right-continuous:
+    // at an exact switching boundary they report the gate, conduction mode,
+    // and switch-node voltage that apply from that instant onward. Preserve
+    // the integrated output/ESL observation, but rebuild the drive-dependent
+    // fields with the boundary drive.
+    const boundaryDrives = options.driveAt(state.time, state);
+    const boundaryObservation = sampleBuckPlant(config, state, boundaryDrives);
+    samples.push({
+      ...result.sample,
+      conductionModes: boundaryObservation.conductionModes,
+      switchNodeVoltages: boundaryObservation.switchNodeVoltages
+    });
     integrationSteps += 1;
     if (samples.length > maxSamples) throw new RangeError("simulation exceeded maxSamples");
   }

@@ -49,9 +49,9 @@
       "concepts": ["light-load behavior", "pulse skipping", "discontinuous operation", "diode emulation", "current limit", "minimum pulse width", "startup"],
       "physicalIntuition": "At light load, one minimum pulse may deliver too much energy, so controllers skip, burst, or prevent reverse current. During current limit/startup, different comparators or timers can override normal requests.",
       "mathematicalDerivation": "Compare minimum pulse energy/current change with load demand; enforce zero-current turnoff for diode emulation and priority ordering among current limit, min-times, and startup clamps.",
-      "modelingConsequence": "Mode transitions are explicit state-machine branches with visible priority. Switching-frequency statistics must state whether skipped intervals are included.",
+      "modelingConsequence": "Mode transitions are explicit state-machine branches with visible priority. The current web COT pulse and ripple-injection models use a disclosed unidirectional diode-emulation clamp at zero inductor current; they do not demonstrate forced-synchronous negative current. Switching-frequency statistics must state whether skipped intervals are included.",
       "assumptions": ["behavior is selected educational policy, not universal COT"],
-      "citations": ["ON-FAN23SV10M", "TI-SLVA281", "TI-SLYY205"],
+      "citations": ["ON-FAN23SV10M", "TI-SLVA281"],
       "evidenceLabels": ["architecture-specific", "modeling choice"],
       "interaction": "Light-load waveform identification",
       "transferQuestion": "Why can forced CCM show negative current where diode-emulation mode shows a zero-current interval?"

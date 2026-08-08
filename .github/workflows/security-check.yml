@@ -1,0 +1,40 @@
+name: Security checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, agent/initial-build]
+  schedule:
+    - cron: '43 11 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-security:
+    name: Secrets, artifacts, and dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Scan repository for credential patterns
+        run: npm run check:secrets
+      - name: Reject generated and cache artifacts
+        run: npm run check:generated
+      - name: Audit locked production and development dependencies
+        run: npm audit --audit-level=high

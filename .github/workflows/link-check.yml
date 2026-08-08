@@ -1,0 +1,52 @@
+name: Source link check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sources/**'
+      - 'docs/sources/**'
+      - 'scripts/check-links.mjs'
+      - 'scripts/validate-sources.mjs'
+      - '.github/workflows/link-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'sources/**'
+      - 'docs/sources/**'
+      - 'scripts/check-links.mjs'
+      - 'scripts/validate-sources.mjs'
+      - '.github/workflows/link-check.yml'
+  schedule:
+    - cron: '17 10 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: links-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-links:
+    name: Validate manifest and publisher links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate source metadata and citations
+        run: npm run check:sources
+      - name: Check source URLs
+        env:
+          LINK_CHECK_CONCURRENCY: '8'
+          LINK_CHECK_TIMEOUT_MS: '20000'
+          LINK_CHECK_RETRIES: '2'
+        run: npm run check:links

@@ -1,0 +1,73 @@
+{
+  "id": "module-07",
+  "number": 7,
+  "title": "Constant on-time control",
+  "prerequisites": ["module-05"],
+  "lessons": [
+    {
+      "id": "7.1",
+      "title": "Request, one-shot, and next eligible pulse",
+      "concepts": ["fixed on-time", "adaptive on-time", "pulse initiation", "one-shot", "variable off-time", "feedback comparator", "minimum/maximum on-time", "minimum off-time", "maximum duty cycle"],
+      "physicalIntuition": "A feedback condition requests energy. An accepted request starts a one-shot; the high side stays on for the commanded/clamped duration, then off-time continues until both feedback and eligibility permit another pulse.",
+      "mathematicalDerivation": "For an ideal basic COT buck near steady CCM, average fs ≈ D/ton ≈ Vo/(Vin ton), not an exact instantaneous constant. Add clamps ton,min ≤ ton,law ≤ ton,max and enforce toff ≥ toff,min; derive a simple timing-limited duty bound only for uninterrupted repeating pulses.",
+      "modelingConsequence": "Represent request, grant, one-shot state, turn-off, off-time lockout, and next eligibility as distinct events. Log denied/delayed triggers and never infer them from a duty ratio alone.",
+      "assumptions": ["ideal steady approximation for average frequency", "no skipped pulses or extra scheduler delay in simple duty bound"],
+      "citations": ["TI-SLVA281", "ON-FAN23SV10M", "KAPAT-2020"],
+      "evidenceLabels": ["derived", "approximation", "architecture-specific"],
+      "interaction": "Constant-on-time pulse simulator",
+      "transferQuestion": "At fixed ton, why does raising Vin usually change average frequency unless the on-time law adapts?"
+    },
+    {
+      "id": "7.2",
+      "title": "Natural, injected, and emulated ripple",
+      "concepts": ["feedback ripple", "output-capacitor ESR ripple", "synthetic ripple injection", "emulated ripple", "minimum ripple", "ripple phase", "threshold crossing"],
+      "physicalIntuition": "The comparator needs a repeatable crossing with the correct timing slope. That crossing may come from output ESR, an inductor/DCR-derived waveform, an internal ramp, or their sum.",
+      "mathematicalDerivation": "Propagate each ripple source through its coupling network to the comparator, compare amplitude/slope to hysteresis, noise, and delay, and identify the phase of the crossing relative to the switching state. Ripple transfer paths can add poles and zeros.",
+      "modelingConsequence": "Expose natural and injected signals separately, including source, amplitude, phase/delay, and coupling. Never equate feedback ripple with output ripple or silently add an ideal ramp.",
+      "assumptions": ["linear small-ripple coupling where frequency-domain formulas are used"],
+      "citations": ["TI-SLVA453", "TI-SNVA166", "TI-SNVA874", "TI-SLVA546", "SUN-COT-2019"],
+      "evidenceLabels": ["derived", "approximation", "architecture-specific"],
+      "interaction": "COT ripple-injection challenge",
+      "transferQuestion": "How can ample injected-ripple amplitude still produce poor timing if its phase is wrong?"
+    },
+    {
+      "id": "7.3",
+      "title": "Delay, hysteresis, noise, and irregular operation",
+      "concepts": ["comparator hysteresis", "comparator noise", "propagation delay", "pulse jitter", "frequency variation", "line transient", "load transient", "numerical assumptions"],
+      "physicalIntuition": "Noise moves a threshold crossing, delay moves the resulting switch transition, and hysteresis changes the next threshold. When feedback slope is shallow, small disturbances become large timing errors.",
+      "mathematicalDerivation": "Approximate timing jitter as Delta t ≈ Delta v/noise-to-crossing-slope for small perturbations, then distinguish physical delay from event quantization. The approximation fails with multiple crossings, large noise, saturation, or mode changes.",
+      "modelingConsequence": "Use deterministic seeded noise and explicit delay state. The web lab detects crossings on its disclosed integration grid and warns when that resolution is too coarse; a production/PSpice implementation should add event interpolation or tighter event scheduling before attributing jitter to physics.",
+      "assumptions": ["local monotonic crossing for jitter estimate", "educational noise spectrum"],
+      "citations": ["TI-SLVA281", "TI-SLVA546", "LIU-COT-2023", "CAD-PSPICE-UG"],
+      "evidenceLabels": ["approximation", "modeling choice"],
+      "interaction": "Noise/hysteresis/delay sweep",
+      "transferQuestion": "If halving the timestep halves observed jitter, what hypothesis should you test before blaming comparator noise?"
+    },
+    {
+      "id": "7.4",
+      "title": "Light load, skipping, diode emulation, and protection",
+      "concepts": ["light-load behavior", "pulse skipping", "discontinuous operation", "diode emulation", "current limit", "minimum pulse width", "startup"],
+      "physicalIntuition": "At light load, one minimum pulse may deliver too much energy, so controllers skip, burst, or prevent reverse current. During current limit/startup, different comparators or timers can override normal requests.",
+      "mathematicalDerivation": "Compare minimum pulse energy/current change with load demand; enforce zero-current turnoff for diode emulation and priority ordering among current limit, min-times, and startup clamps.",
+      "modelingConsequence": "Mode transitions are explicit state-machine branches with visible priority. Switching-frequency statistics must state whether skipped intervals are included.",
+      "assumptions": ["behavior is selected educational policy, not universal COT"],
+      "citations": ["ON-FAN23SV10M", "TI-SLVA281", "TI-SLYY205"],
+      "evidenceLabels": ["architecture-specific", "modeling choice"],
+      "interaction": "Light-load waveform identification",
+      "transferQuestion": "Why can forced CCM show negative current where diode-emulation mode shows a zero-current interval?"
+    },
+    {
+      "id": "7.5",
+      "title": "Servo loops, error amplifiers, and COT stability",
+      "concepts": ["servo loop", "integrator", "error amplifier", "DC regulation accuracy", "COT loop dynamics", "compensation claims"],
+      "physicalIntuition": "A fast ripple comparator can time pulses while a slower error/servo path corrects DC offset or adjusts a threshold. Even without an external COMP pin, plant, ripple path, delay, and internal loops shape response.",
+      "mathematicalDerivation": "Factor a disclosed COT small-signal loop into plant, divider, comparator/ripple dynamics, fixed-on-time delay, and servo where present. Identify conditions such as small ripple, fixed mode, and frequency below switching.",
+      "modelingConsequence": "The lesson taxonomy and PSpice block puzzle identify fast ripple and slower servo paths. The current web COT pulse lab models one generic comparator/one-shot path, not a selectable commercial servo architecture; statements such as 'no error amplifier' or 'no compensation' remain architecture-qualified.",
+      "assumptions": ["architecture-specific linearization", "small-signal operating mode"],
+      "citations": ["TI-SLVA546", "TI-SLVAF11", "LIU-COT-2023", "KAPAT-2020"],
+      "evidenceLabels": ["architecture-specific", "approximation"],
+      "interaction": "Guided COT loop-block analysis followed by the PSpice block-construction puzzle",
+      "transferQuestion": "How can a controller be marketed as externally compensation-free while still having a shaped loop response?"
+    }
+  ]
+}

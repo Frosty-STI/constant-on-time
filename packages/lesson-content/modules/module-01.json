@@ -1,0 +1,48 @@
+{
+  "id": "module-01",
+  "number": 1,
+  "title": "The switching buck power stage",
+  "prerequisites": ["module-00"],
+  "lessons": [
+    {
+      "id": "1.1",
+      "title": "Two switch states, one inductor",
+      "concepts": ["high-side switch", "low-side switch", "catch diode", "inductor", "output capacitor", "load", "input capacitor", "on-time current path", "off-time current path"],
+      "physicalIntuition": "The switch pair chooses the inductor's left-end voltage. The inductor current then rises or falls according to the voltage difference between switch node and output while the capacitor absorbs the mismatch with load current.",
+      "mathematicalDerivation": "For ideal positive-current CCM, high-side on gives vL = Vin - Vo and diL/dt = (Vin-Vo)/L; low-side on gives vL = -Vo and diL/dt = -Vo/L. Integrating over a period yields volt-second balance and Vo = D Vin under ideal assumptions.",
+      "modelingConsequence": "A buck-phase block must compute vL from the actual switch state and output, not from a precomputed ripple formula. Current polarity and node-voltage sign must be testable.",
+      "assumptions": ["ideal synchronous switch states", "CCM", "periodic steady state for conversion ratio"],
+      "citations": ["MIT622-L05", "TI-SLVA057", "FPE3"],
+      "evidenceLabels": ["derived", "exact"],
+      "interaction": "Current-path puzzle: high-side and low-side states",
+      "transferQuestion": "At Vin = 10 V and Vo = 4 V, which slope has larger magnitude and why must their time-weighted areas still cancel?"
+    },
+    {
+      "id": "1.2",
+      "title": "Dead time, body diodes, and reverse current",
+      "concepts": ["dead time", "body-diode conduction", "asynchronous freewheel", "reverse current", "diode emulation", "startup"],
+      "physicalIntuition": "Turning both gates off does not stop inductor current. Positive current commutates into the low-side body diode; negative current can commutate into the high-side body diode. An asynchronous diode blocks the reverse-current state, while a forced synchronous switch can permit it.",
+      "mathematicalDerivation": "During dead time use vL = vsw,clamp - Vo, with vsw,clamp selected by current sign and diode drop. The diode's unilateral constraint creates a zero-current interval in DCM; synchronous bidirectional conduction removes that constraint unless control emulates the diode.",
+      "modelingConsequence": "Dead time needs a third switching state and sign-aware clamp. A model that always applies -Vo/L during dead time has the wrong negative-current path. Diode emulation needs a zero-current decision with delay/hysteresis assumptions.",
+      "assumptions": ["lumped body-diode drop", "switch capacitance and reverse recovery excluded unless enabled"],
+      "citations": ["MIT622-L05", "FPE3", "ON-FAN23SV10M"],
+      "evidenceLabels": ["derived", "architecture-specific", "modeling choice"],
+      "interaction": "Current-path puzzle: dead time, asynchronous, reverse-current, and diode-emulation cases",
+      "transferQuestion": "Which body diode conducts if iL is negative when both MOSFET gates turn off?"
+    },
+    {
+      "id": "1.3",
+      "title": "Charge balance and the input/output capacitors",
+      "concepts": ["capacitor current", "charge balance", "input pulsating current", "output smoothing"],
+      "physicalIntuition": "The output capacitor is a local current reservoir: it charges when inductor current exceeds load and discharges when it is smaller. The input capacitor supplies the pulsed high-side current locally.",
+      "mathematicalDerivation": "Write iC,out = iL - iload and integrate over a period to obtain zero net charge in steady state. The source/high-side current is a gated version of inductor current, so input-capacitor RMS is not equal to output ripple current.",
+      "modelingConsequence": "Integrate the capacitor state from current mismatch; do not impose output ripple. Export capacitor current and source current as first-class signals for balance and RMS checks.",
+      "assumptions": ["shared lumped output node", "periodic steady state for charge balance"],
+      "citations": ["FPE3", "TI-SLVA057", "TI-SLVA477"],
+      "evidenceLabels": ["derived", "exact"],
+      "interaction": "Predict capacitor-current sign before revealing synchronized plots",
+      "transferQuestion": "Immediately after a positive load step, before iL changes, what is the sign and magnitude change of capacitor current?"
+    }
+  ]
+}
+

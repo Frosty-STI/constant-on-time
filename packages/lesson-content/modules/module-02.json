@@ -1,0 +1,73 @@
+{
+  "id": "module-02",
+  "number": 2,
+  "title": "Ripple, operating modes, and component selection",
+  "prerequisites": ["module-01"],
+  "lessons": [
+    {
+      "id": "2.1",
+      "title": "Inductor ripple, peaks, valleys, and boundaries",
+      "concepts": ["on/off slopes", "peak-to-peak ripple", "peak current", "valley current", "switching frequency", "inductance tradeoff", "CCM", "DCM", "boundary conduction"],
+      "physicalIntuition": "Inductance resists slope, not current itself. Higher switching frequency or L reduces triangular excursion; load shifts the triangle vertically until a unidirectional stage touches zero.",
+      "mathematicalDerivation": "Integrate each ideal slope over on/off intervals to derive Delta iL. In symmetric steady triangular ripple, Ipk/val = Iavg ± Delta/2 and boundary load equals Delta/2 for a unidirectional ideal buck.",
+      "modelingConsequence": "The sandbox must distinguish analytical fixed-frequency CCM estimates from event-driven switched results, and detect zero-current mode transitions rather than clamping after the fact.",
+      "assumptions": ["linear L", "ideal fixed-frequency timing for closed-form ripple", "unidirectional boundary formula"],
+      "citations": ["MIT622-L07", "MIT622-L08", "TI-SLVA057", "TI-SLVA477"],
+      "evidenceLabels": ["derived", "approximation"],
+      "interaction": "Inductor-ripple sandbox with predict-before-reveal",
+      "transferQuestion": "Halve L and double phase count at the same total load: what happens to each phase's ripple ratio and boundary load?"
+    },
+    {
+      "id": "2.2",
+      "title": "Capacitive, ESR, ESL, and multiphase ripple",
+      "concepts": ["capacitor current", "capacitive ripple", "ESR ripple", "ESL effects", "summed multiphase ripple", "measurement artifacts"],
+      "physicalIntuition": "Capacitance integrates current mismatch, ESR turns current directly into voltage, and ESL turns current edge rate into voltage. Interleaving changes the summed current before these impedance elements act.",
+      "mathematicalDerivation": "For ideal single-phase CCM triangular capacitor current, Delta vC ≈ Delta iL/(8 C fs). Lumped ESR adds iC RESR and ESL adds LESL diC/dt; waveform components need not peak together.",
+      "modelingConsequence": "Store ideal capacitor voltage separately from terminal output voltage. Label lumped ESL as educational, and warn that edge ringing/probe loops are not captured by a single element.",
+      "assumptions": ["triangular steady ripple for 1/8 estimate", "frequency-independent lumped ESR/ESL"],
+      "citations": ["TI-SLVA057", "TI-SLVA477", "ADI-AN1144", "TI-SLVA882"],
+      "evidenceLabels": ["approximation", "modeling choice"],
+      "interaction": "Capacitor/output-ripple sandbox",
+      "transferQuestion": "Why can two capacitors with the same C yield different edge ripple and different low-frequency droop?"
+    },
+    {
+      "id": "2.3",
+      "title": "Nonideal state equations and loss intuition",
+      "concepts": ["inductor DCR", "capacitor ESR", "high/low-side resistance", "diode drop", "dead-time effect", "basic loss and efficiency"],
+      "physicalIntuition": "Series drops reduce the voltage available to change current and dissipate energy. Dead-time diode conduction can dominate a short interval even when MOSFET resistance is small.",
+      "mathematicalDerivation": "Replace ideal switch-node/inductor voltage with Vin - Vo - iL(RHS+RDCR) on, and approximately -Vo - iL(RLS+RDCR) during low-side conduction; use the sign-aware diode clamp in dead time. Conduction loss uses RMS current squared times resistance under stated temperature.",
+      "modelingConsequence": "Each phase exposes resistances and diode drop separately, allowing voltage error, slope change, and dissipation estimates. Do not claim switching loss without charge/capacitance/gate dynamics.",
+      "assumptions": ["constant lumped resistances", "temperature and nonlinear capacitance excluded"],
+      "citations": ["FPE3", "TI-SLVA477", "ADI-BUCK-EQ"],
+      "evidenceLabels": ["derived", "approximation", "modeling choice"],
+      "interaction": "Ideal/nonideal overlay and loss budget",
+      "transferQuestion": "Which resistance changes DC conversion error and which measurement would separate it from timing error?"
+    },
+    {
+      "id": "2.4",
+      "title": "Load-step charge and design trade space",
+      "concepts": ["inductor-current slew", "output-capacitor charge deficit", "transient response", "component selection", "current limit"],
+      "physicalIntuition": "Load current can jump; inductor current cannot. The capacitor supplies the deficit until phases slew, so smaller ripple is not automatically faster transient response.",
+      "mathematicalDerivation": "Integrate Delta i(t) = iload - sum(iL) over the deficit window to get Delta Q and Delta V ≈ Delta Q/C before including ESR, ESL, and loop recovery. Bound di/dt from available inductor voltage and per-phase current limits.",
+      "modelingConsequence": "The operating-point designer scores voltage droop, ripple, current stress, and slew feasibility separately. Multiple valid L/C/fs/N choices remain possible.",
+      "assumptions": ["charge-deficit estimate omits full closed-loop recovery"],
+      "citations": ["TI-SLYT139", "TI-SLVA882", "FPE3"],
+      "evidenceLabels": ["derived", "approximation", "heuristic"],
+      "interaction": "Buck operating-point designer",
+      "transferQuestion": "Defend two designs: one with low ripple/high L and one with faster current slew/lower L. Which needs more current-limit margin?"
+    },
+    {
+      "id": "2.5",
+      "title": "Waveform identification without label guessing",
+      "concepts": ["CCM", "DCM", "boundary conduction", "reverse current", "pulse skipping", "diode emulation", "numerical artifact"],
+      "physicalIntuition": "A waveform label follows from conduction paths and event rules. A flat zero-current interval means something different from negative forced-synchronous current, and isolated jagged samples may be numerical rather than physical.",
+      "mathematicalDerivation": "Test whether iL stays positive, reaches zero only at a boundary, remains at zero for a finite interval, or crosses negative while a bidirectional path is enabled. Check event/timestep convergence and state-equation residuals before assigning a physical instability label.",
+      "modelingConsequence": "Generated identification cases preserve hidden ground truth: switch states, event log, timestep, and mode policy. Explanations reveal these after the learner commits.",
+      "assumptions": ["mode labels use the project's declared current sign and conduction policy"],
+      "citations": ["MIT622-L08", "TI-SLVA057", "ON-FAN23SV10M", "CAD-PSPICE-UG"],
+      "evidenceLabels": ["derived", "architecture-specific", "modeling choice"],
+      "interaction": "CCM/DCM waveform identification",
+      "transferQuestion": "What extra evidence distinguishes pulse skipping from a simulator that stepped over a narrow pulse?"
+    }
+  ]
+}

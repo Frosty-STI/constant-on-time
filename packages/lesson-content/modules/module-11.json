@@ -1,0 +1,61 @@
+{
+  "id": "module-11",
+  "number": 11,
+  "title": "PSpice modeling methods",
+  "prerequisites": ["module-10"],
+  "lessons": [
+    {
+      "id": "11.1",
+      "title": "Choose the abstraction by the question",
+      "concepts": ["ideal averaged model", "switched behavioral model", "detailed transistor model", "hierarchical subcircuits", "behavioral versus transistor-level"],
+      "physicalIntuition": "Detail is valuable only if it contains the mechanism being investigated. Averaging is ideal for low-frequency plant work; switched behavior is required for pulses; device models are needed for switching loss/edge stress.",
+      "mathematicalDerivation": "Map each question to required state/event bandwidth and compare it with what averaging, ideal switches, ABM, and device models retain. Establish validation oracles appropriate to the rung.",
+      "modelingConsequence": "Every testbench declares abstraction, included/excluded effects, and why that rung is sufficient. Build upward only after lower-rung invariants pass.",
+      "assumptions": ["no abstraction answers all questions"],
+      "citations": ["FPE3", "CAD-PSPICE-UG", "CAD-DCDC-APP", "CAD-FORWARD-APP"],
+      "evidenceLabels": ["modeling choice"],
+      "interaction": "Abstraction selection scenarios",
+      "transferQuestion": "Why is a transistor-level model a poor first tool for debugging scheduler fairness?"
+    },
+    {
+      "id": "11.2",
+      "title": "ABM building blocks for controllers",
+      "concepts": ["behavioral voltage/current sources", "controlled sources", "switches", "comparator", "hysteresis", "RS latch", "one-shot", "propagation delay", "sample-and-hold", "dead time", "current sensing", "current limit", "noise"],
+      "physicalIntuition": "Each ideal function needs memory, delay, thresholds, and saturation made explicit enough to avoid impossible instantaneous circular behavior.",
+      "mathematicalDerivation": "Define piecewise comparator guards, Schmitt thresholds, latch truth table, timer inequalities, delayed events, and controlled-switch state equations. Smooth only the numerical discontinuity that is intentionally approximated and document its scale.",
+      "modelingConsequence": "Use inspectable hierarchical subcircuits and named internal nodes. Avoid undocumented syntax and verify every ABM expression against the official user guide and target version.",
+      "assumptions": ["behavioral blocks omit semiconductor overdrive/metastability unless modeled"],
+      "citations": ["CAD-PSPICE-UG", "CAD-FORWARD-APP"],
+      "evidenceLabels": ["modeling choice", "validation pending"],
+      "interaction": "PSpice block-construction puzzle",
+      "transferQuestion": "Which state element breaks a comparator-to-switch-to-comparator zero-delay loop and what timing does it add?"
+    },
+    {
+      "id": "11.3",
+      "title": "Transient setup and convergence debugging",
+      "concepts": ["initial conditions", "startup", "time-step selection", "solver tolerances", "smoothing discontinuities", "algebraic loops", "floating nodes", "ideal-switch convergence", "numerical instability"],
+      "physicalIntuition": "A solver must reconcile nonlinear states and discontinuous events. Unrealistically perfect switches, missing DC paths, and simultaneous zero-delay decisions can make the mathematics ill-conditioned even when the intended idea is simple.",
+      "mathematicalDerivation": "Relate maximum step to the shortest pulse/delay and integration error, then perform step/tolerance sensitivity. Add physically/behaviorally justified finite resistance, hysteresis, delay, or weak DC path rather than random numerical patches.",
+      "modelingConsequence": "The debugging lab demands evidence, likely cause, correction, and revalidation. A smaller step or relaxed tolerance is never accepted without explaining its physical/numerical effect.",
+      "assumptions": ["specific solver settings depend on installed PSpice release"],
+      "citations": ["CAD-PSPICE-UG", "BROWN-1981"],
+      "evidenceLabels": ["modeling choice", "validation pending"],
+      "interaction": "Broken-model debugging laboratory",
+      "transferQuestion": "How do you distinguish comparator chatter from a trapezoidal numerical oscillation?"
+    },
+    {
+      "id": "11.4",
+      "title": "Sweeps, mismatch, measurements, and loop injection",
+      "concepts": ["parameter sweeps", "Monte Carlo", "component mismatch", "frequency measurement", "phase-current measurement", "ripple measurement", "phase spacing", "load transient", "loop response", "controller versus plant"],
+      "physicalIntuition": "One nominal waveform cannot reveal sensitivity. Measurements need definitions and windows, and randomness needs a seed/distribution.",
+      "mathematicalDerivation": "Define cursor/window metrics for average, RMS, peak-to-peak, event frequency, phase separation, recovery time, and sharing error. Specify parameter distributions and preserve seeds. Use a valid injection topology for linear loop response.",
+      "modelingConsequence": "Testbenches emit raw signals plus measured values and scenario metadata. Separate controller-only test stimuli from full power-stage tests to isolate faults.",
+      "assumptions": ["Monte Carlo distributions are synthetic unless sourced", "loop injection is small-signal"],
+      "citations": ["CAD-PSPICE-UG", "CAD-ABM-PLOT", "MIDDLEBROOK-1975", "ADI-AN1144"],
+      "evidenceLabels": ["modeling choice", "approximation"],
+      "interaction": "Measurement-definition and sweep planner",
+      "transferQuestion": "Why must a per-phase switching-frequency metric specify its time window in variable-frequency COT?"
+    }
+  ]
+}
+

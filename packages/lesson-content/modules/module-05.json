@@ -1,0 +1,47 @@
+{
+  "id": "module-05",
+  "number": 5,
+  "title": "Error amplifiers and compensation",
+  "prerequisites": ["module-04"],
+  "lessons": [
+    {
+      "id": "5.1",
+      "title": "From reference to loop gain",
+      "concepts": ["feedback divider", "voltage reference", "error amplifier", "transconductance amplifier", "compensation pin", "modulator gain", "power-stage gain", "feedback-network gain"],
+      "physicalIntuition": "The divider samples output, the amplifier turns error into a control signal, the modulator converts control into timing, and the plant converts timing into output. Every scaling changes loop gain.",
+      "mathematicalDerivation": "Write T(s) as the signed product GEA(s) Gmod(s) Gplant(s) H(s) for a compatible voltage-mode linearization. For gm amplifiers, convert output current through the compensation impedance before treating it as control voltage.",
+      "modelingConsequence": "Expose each transfer function separately and multiply them only with compatible units/signs. Never omit modulator or feedback gain in the total loop plot.",
+      "assumptions": ["single-loop voltage-mode factorization shown; other architectures may differ"],
+      "citations": ["FPE3", "TI-SLVA301"],
+      "evidenceLabels": ["derived", "architecture-specific"],
+      "interaction": "Block-gain assembly puzzle",
+      "transferQuestion": "If the divider gain halves but the amplifier is unchanged, what happens to loop crossover and DC output setpoint?"
+    },
+    {
+      "id": "5.2",
+      "title": "Type I, II, and III networks",
+      "concepts": ["Type I compensation", "Type II compensation", "Type III compensation", "poles", "zeros", "DC gain", "high-frequency rolloff", "component calculations"],
+      "physicalIntuition": "An integrator increases low-frequency correction, zeros add phase/gain where the plant falls, and high-frequency poles limit noise and unmodeled dynamics.",
+      "mathematicalDerivation": "Derive each displayed circuit's impedance ratio or gm-times-impedance transfer function; factor it to locate poles/zeros. Map every R/C to one mathematical term rather than relying on a topology name alone.",
+      "modelingConsequence": "The builder generates the transfer function from the selected topology and validates positive finite component values. It does not treat two vendor topologies with the same label as identical.",
+      "assumptions": ["ideal amplifier within its modeled bandwidth unless nonideal poles are added"],
+      "citations": ["FPE3", "TI-SLVA301"],
+      "evidenceLabels": ["derived", "approximation"],
+      "interaction": "Error-amplifier builder",
+      "transferQuestion": "Move a compensation zero below the LC resonance: predict low-frequency gain and phase-margin tradeoffs."
+    },
+    {
+      "id": "5.3",
+      "title": "Crossover tuning and measured loop gain",
+      "concepts": ["low-frequency gain", "crossover target", "phase margin", "gain peaking", "loop injection", "injection transformer", "measurement point", "measured versus modeled loop"],
+      "physicalIntuition": "Loop tuning balances disturbance rejection, damping, noise, delay, and uncertainty. Injection perturbs a live closed loop so the return signal can be measured without destroying the operating point.",
+      "mathematicalDerivation": "Choose target shape using complete loop gain, calculate required compensator magnitude/phase, and use Middlebrook's injection conditions to interpret a return ratio. Specify, rather than fabricate, the separate nonlinear load-step validation.",
+      "modelingConsequence": "The frequency-domain lab exposes all loop factors and multiple crossings. The lesson and PSpice guide teach injection-point selection; the web lab does not emulate an injection transformer or nonlinear load step. No fixed fs fraction is graded as universally correct.",
+      "assumptions": ["small injection", "operating point preserved", "valid injection impedance conditions"],
+      "citations": ["MIDDLEBROOK-1975", "FPE3", "TI-SLVA301", "BROWN-1981"],
+      "evidenceLabels": ["derived", "heuristic", "approximation"],
+      "interaction": "Crossover-frequency tuning lab",
+      "transferQuestion": "Why can increasing compensator gain improve modeled crossover yet worsen a saturated load transient?"
+    }
+  ]
+}

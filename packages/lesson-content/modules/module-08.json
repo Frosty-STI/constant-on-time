@@ -1,0 +1,47 @@
+{
+  "id": "module-08",
+  "number": 8,
+  "title": "Constant on-time versus peak-current-mode control",
+  "prerequisites": ["module-06", "module-07"],
+  "lessons": [
+    {
+      "id": "8.1",
+      "title": "Two independent questions: what starts and what ends a pulse?",
+      "concepts": ["pulse-start event", "pulse-end event", "timing reference", "fixed/variable frequency", "hybrid architectures", "control versus modulation"],
+      "physicalIntuition": "A label may describe the timer while another describes the sensed state. Clocked peak-current PWM, valley-triggered one-shots, and current-programmed COT occupy different combinations of independent decisions.",
+      "mathematicalDerivation": "Represent a controller as a tuple of start guard, end guard/timer, state feedback, frequency law, and outer-loop update. Use the tuple to classify architectures rather than forcing exclusive categories.",
+      "modelingConsequence": "The taxonomy document expresses start and end rules as explicit tuples and supplies hybrid classification prompts. The current comparison plot does not construct arbitrary hybrid controllers interactively.",
+      "assumptions": ["taxonomy is descriptive, not a proof of performance"],
+      "citations": ["KAPAT-2020", "RIDLEY-1990-COT", "TI-SLVA281"],
+      "evidenceLabels": ["derived", "architecture-specific"],
+      "interaction": "Control-taxonomy teach-back classifier using the documented start/end tuples",
+      "transferQuestion": "Classify a controller whose voltage comparator starts a fixed on pulse but whose threshold is adjusted by average current error."
+    },
+    {
+      "id": "8.2",
+      "title": "Matched-plant comparison",
+      "concepts": ["outer voltage loop", "inner current behavior", "error-amplifier role", "compensation", "line feedforward", "transient response", "noise", "delay", "current limit", "light load", "min-times", "maximum duty"],
+      "physicalIntuition": "The same inductor/capacitor can respond differently because pulse decisions see different signals and delays. No mode is universally faster, quieter, or simpler independent of implementation.",
+      "mathematicalDerivation": "Use matched normalized response templates to isolate qualitative damping, delay, noise, limit, and light-load tendencies. This is a heuristic comparison, not substitution of three controller state machines into one switched plant.",
+      "modelingConsequence": "The current lab displays output-only, normalized damped-response proxies with scenario-specific metrics and visible exclusions. Controller waveforms, sensing, and compensation structures must be compared separately before making a design claim.",
+      "assumptions": ["normalized heuristic response templates", "representative educational tendencies", "no universal superiority inference"],
+      "citations": ["KAPAT-2020", "TI-SLVA301", "RIDLEY-1991", "TI-SLVA281"],
+      "evidenceLabels": ["modeling choice", "architecture-specific"],
+      "interaction": "Control-mode comparison lab: startup, line step, load step, noise, and limit",
+      "transferQuestion": "Which comparison conclusion reverses when comparator delay doubles, and why?"
+    },
+    {
+      "id": "8.3",
+      "title": "Behavioral-model complexity and failure modes",
+      "concepts": ["sensing requirements", "ripple dependence", "sampled instability", "jitter", "minimum timing", "model abstraction"],
+      "physicalIntuition": "Each architecture moves complexity: explicit compensation, accurate current sensing, clean feedback ripple, scheduling, or mode logic. Omitting the hard part produces an unrealistically favorable model.",
+      "mathematicalDerivation": "Trace each controller's decision variable sensitivity to noise, delay, and slope and identify its constrained timing inequalities.",
+      "modelingConsequence": "The block-construction puzzle requires the architecture's essential sensor/timing blocks and highlights what is excluded.",
+      "assumptions": ["comparison scoped to disclosed decision rules"],
+      "citations": ["TI-SNVA555", "TI-SLVA546", "KAPAT-2020"],
+      "evidenceLabels": ["derived", "modeling choice"],
+      "interaction": "Failure-mode matrix challenge",
+      "transferQuestion": "Why would an ideal ripple source make a COT model look unfairly robust?"
+    }
+  ]
+}

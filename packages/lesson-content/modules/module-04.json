@@ -1,0 +1,60 @@
+{
+  "id": "module-04",
+  "number": 4,
+  "title": "Feedback and loop terminology",
+  "prerequisites": ["module-03"],
+  "lessons": [
+    {
+      "id": "4.1",
+      "title": "Open loop, closed loop, and return ratio",
+      "concepts": ["open-loop behavior", "closed-loop behavior", "loop gain", "return ratio", "crossover frequency", "gain margin", "phase margin"],
+      "physicalIntuition": "Loop gain describes how a perturbation returns around a specified feedback path. Closing the loop changes disturbance rejection and command response, but only if signs and operating point are preserved.",
+      "mathematicalDerivation": "Derive closed-loop sensitivity and complementary sensitivity from the declared negative-feedback diagram. Define crossover and margins at identified crossings, noting multiple-crossing and phase-convention caveats.",
+      "modelingConsequence": "Plots must name the loop, cut/injection point, return-ratio sign, crossing, and operating point. A node ratio is not automatically loop gain.",
+      "assumptions": ["linearized loop", "valid injection/cut"],
+      "citations": ["FPE3", "MIDDLEBROOK-1975"],
+      "evidenceLabels": ["exact", "derived"],
+      "interaction": "Loop-path highlighting and margin cursor lab",
+      "transferQuestion": "If the magnitude crosses unity three times, which phase margin should be reported and what additional evidence is needed?"
+    },
+    {
+      "id": "4.2",
+      "title": "Damping, peaking, and time response",
+      "concepts": ["resonance", "gain peaking", "stability versus damping", "time-domain/frequency-domain relationship", "closed-loop bandwidth"],
+      "physicalIntuition": "A stable loop can still ring badly. Phase margin is a local loop-shape clue, while zeros, gain slope, saturation, and large-signal current slew shape the actual transient.",
+      "mathematicalDerivation": "Relate a canonical second-order damping ratio to peaking and step response only under that canonical form, then show why additional poles/zeros break a one-number mapping.",
+      "modelingConsequence": "The tuning lab exposes complete loop, closed-loop, and output-impedance frequency responses. A load-step cross-check remains a separate nonlinear validation task because this lab does not synthesize one from phase margin.",
+      "assumptions": ["second-order mappings are approximations outside canonical systems"],
+      "citations": ["FPE3", "TI-SLVA301"],
+      "evidenceLabels": ["exact", "approximation"],
+      "interaction": "Classify damping and predicted step-response tendencies from the displayed loop shape, then write the separate switched load-step validation you would run",
+      "transferQuestion": "Give two loops with similar phase margin but different transient peaking and identify the extra feature responsible."
+    },
+    {
+      "id": "4.3",
+      "title": "Phase and bandwidth disambiguation",
+      "concepts": ["power phase", "interleaving phase offset", "Bode phase", "phase margin", "switching frequency", "crossover frequency", "closed-loop bandwidth", "voltage-loop bandwidth", "current-loop bandwidth", "current-sharing-loop bandwidth", "sampling frequency", "effective multiphase ripple frequency"],
+      "physicalIntuition": "The same words describe hardware branches, geometric timing, complex angle, and response speed. Ambiguity is a technical error because each quantity predicts different behavior.",
+      "mathematicalDerivation": "Define phase offset as time displacement normalized by period, Bode phase as arg G(jw), phase margin from loop angle at a selected unity crossing, and each bandwidth from a named loop/closed response. Under ideal uniform N-phase timing, summed ripple periodicity can be Nfs, but variable-frequency phases break that shortcut.",
+      "modelingConsequence": "UI labels never say only 'phase' or 'bandwidth.' Every metric includes its object and units; per-phase switching-frequency distributions are separated from effective summed ripple.",
+      "assumptions": ["ideal Nfs relation requires equal frequency, symmetry, and spacing"],
+      "citations": ["FPE3", "TI-SLVA882", "RIDLEY-1991", "INFINEON-APEC03"],
+      "evidenceLabels": ["exact", "approximation"],
+      "interaction": "Terminology disambiguation challenge",
+      "transferQuestion": "Repair this statement: 'The four-phase buck phase is 60 degrees at a 100-kHz bandwidth.'"
+    },
+    {
+      "id": "4.4",
+      "title": "Crossover versus switching rate",
+      "concepts": ["switching-frequency separation", "sampled-data limits", "rules of thumb"],
+      "physicalIntuition": "A loop cannot ignore the pulse-generation delay and sampled decisions when its dynamics approach those time scales. A fixed fraction of fs is only a starting screen.",
+      "mathematicalDerivation": "Model delay as exp(-sTd) to expose frequency-dependent phase lag, and compare averaged predictions with sampled-data limits near half switching frequency. No single ratio includes delay, plant order, ripple, or architecture.",
+      "modelingConsequence": "The lab may display heuristic zones but cannot score one universal crossover ratio. Switched verification is mandatory for aggressive targets.",
+      "assumptions": ["pure-delay approximation where used"],
+      "citations": ["BROWN-1981", "FPE3", "RIDLEY-1991"],
+      "evidenceLabels": ["approximation", "heuristic"],
+      "interaction": "Delay and crossover sensitivity sweep",
+      "transferQuestion": "Why might fs/10 be conservative in one converter and unsafe in another?"
+    }
+  ]
+}

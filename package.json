@@ -1,0 +1,47 @@
+{
+  "name": "constant-on-time",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first interactive buck-converter and constant-on-time learning laboratory.",
+  "workspaces": [
+    "app",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:sim": "npm run build --workspace @constant-on-time/sim-core",
+    "dev": "npm run build:sim && npm run dev --workspace @constant-on-time/app",
+    "build": "npm run build --workspace @constant-on-time/sim-core && npm run build --workspace @constant-on-time/app",
+    "preview": "npm run preview --workspace @constant-on-time/app",
+    "lint": "npm run build:sim && eslint . --max-warnings=0",
+    "typecheck": "npm run build:sim && npm run check --workspace @constant-on-time/sim-core && npm run typecheck --workspace @constant-on-time/app",
+    "test": "npm run build:sim && npm run test --workspace @constant-on-time/sim-core && npm run test --workspace @constant-on-time/app",
+    "test:unit": "npm run build:sim && npm run coverage --workspace @constant-on-time/sim-core && npm run test:unit --workspace @constant-on-time/app",
+    "test:e2e": "playwright test",
+    "test:all": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e",
+    "check:links": "node scripts/check-links.mjs",
+    "check:offline": "node scripts/check-offline.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:sources": "node scripts/validate-sources.mjs",
+    "check:generated": "node scripts/check-generated-artifacts.mjs",
+    "check:pspice": "python3 pspice/scripts/netlist_lint.py && python3 pspice/scripts/analytical_checks.py",
+    "verify:static": "npm run check:sources && npm run check:generated && npm run check:secrets && npm run check:pspice",
+    "audit:dependencies": "npm audit --audit-level=high"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.62.1",
+    "@sparticuz/chromium": "^149.0.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.0.0",
+    "globals": "^16.4.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}

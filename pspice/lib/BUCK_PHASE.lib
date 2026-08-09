@@ -1,0 +1,92 @@
+* Constant On-Time Lab -- generic buck power-stage blocks
+* Educational PSpice-oriented text library. No vendor models are used.
+* Positive phase current flows VIN/SW -> inductor -> OUT.
+* CAD-PSPICE-UG: Cadence PSpice A/D User Guide, Analog Behavioral Modeling.
+
+.MODEL SW_COTLAB VSWITCH (RON=1u ROFF=1G VON=3 VOFF=1)
+.MODEL D_BODY_COTLAB D (IS=10n N=1.05 RS=10m TT=5n CJO=20p)
+.MODEL D_FAST_COTLAB D (IS=1n N=1 RS=1m TT=1n CJO=2p)
+
+* BUCK_PHASE VIN OUT GHS GLS SW IMON
+* IMON uses 1 V/A by default. SW is intentionally exposed for inspection.
+* Channel resistance is modeled explicitly in series with each ideal switch.
+* Body diodes establish a path during dead time and for reverse current.
+.SUBCKT BUCK_PHASE VIN OUT GHS GLS SW IMON PARAMS:
++ LPH=1u DCR=5m RHS=10m RLS=5m VBDROP=0 IMONGAIN=1
+RHSER VIN NHS {RHS}
+SHS NHS SW GHS 0 SW_COTLAB
+RLSER SW NLS {RLS}
+SLS NLS 0 GLS 0 SW_COTLAB
+* VBDROP is an optional fixed series offset in addition to the nonlinear
+* D_BODY_COTLAB junction voltage. It is not the total diode forward voltage.
+VBDH SW NBDH {VBDROP}
+DHS NBDH VIN D_BODY_COTLAB
+DLS 0 NBDL D_BODY_COTLAB
+VBDL NBDL SW {VBDROP}
+LPHASE SW NL {LPH}
+RDCR NL NSENSE {DCR}
+VILSENSE NSENSE OUT 0
+EIMON IMON 0 VALUE={I(VILSENSE)*IMONGAIN}
+RIMON IMON 0 1G
+.ENDS BUCK_PHASE
+
+* Idealized switched phase. It retains finite switch on/off resistance so the
+* nodal problem remains solvable; set RHS/RLS/DCR to zero only with care.
+.SUBCKT BUCK_PHASE_IDEAL VIN OUT GHS GLS SW IMON PARAMS:
++ LPH=1u IMONGAIN=1
+SHS VIN SW GHS 0 SW_COTLAB
+SLS SW 0 GLS 0 SW_COTLAB
+DHS SW VIN D_FAST_COTLAB
+DLS 0 SW D_FAST_COTLAB
+LPHASE SW NSENSE {LPH}
+VILSENSE NSENSE OUT 0
+EIMON IMON 0 VALUE={I(VILSENSE)*IMONGAIN}
+RIMON IMON 0 1G
+.ENDS BUCK_PHASE_IDEAL
+
+* Averaged CCM phase. DUTY is a dimensionless voltage (0 V -> 0, 1 V -> 1).
+* EAVG produces d*VIN at SW. This is not a switching waveform and is not valid
+* for switching ripple, DCM, pulse skipping, or sampled-data effects.
+.SUBCKT BUCK_AVERAGED VIN DUTY OUT IMON PARAMS:
++ LPH=1u DCR=5m IMONGAIN=1
+EAVG SW 0 VALUE={LIMIT(V(DUTY),0,1)*V(VIN)}
+LPHASE SW NL {LPH}
+RDCR NL NSENSE {DCR}
+VILSENSE NSENSE OUT 0
+EIMON IMON 0 VALUE={I(VILSENSE)*IMONGAIN}
+RIMON IMON 0 1G
+.ENDS BUCK_AVERAGED
+
+* Complementary gate driver with delayed rising edges and diode-bypassed
+* falling edges. DEAD ~= 0.693*RDEAD*CDEAD at the 50% threshold.
+* This is a timing abstraction, not a MOSFET gate-charge model.
+.SUBCKT COMPLEMENTARY_DRIVER PWM GHS GLS PARAMS:
++ VLOGIC=5 DEAD=20n CDEAD=10p RDRIVE=1G
+EHRAW HRAW 0 VALUE={LIMIT(V(PWM),0,VLOGIC)}
+ELRAW LRAW 0 VALUE={VLOGIC-LIMIT(V(PWM),0,VLOGIC)}
+RH HRAW HDELAY {IF(DEAD>0,DEAD/(0.693*CDEAD),1m)}
+CH HDELAY 0 {CDEAD} IC=0
+DH HDELAY HRAW D_FAST_COTLAB
+RL LRAW LDELAY {IF(DEAD>0,DEAD/(0.693*CDEAD),1m)}
+CL LDELAY 0 {CDEAD} IC={VLOGIC}
+DL LDELAY LRAW D_FAST_COTLAB
+EHOUT GHS 0 VALUE={IF(V(HDELAY)>VLOGIC/2,VLOGIC,0)}
+ELOUT GLS 0 VALUE={IF(V(LDELAY)>VLOGIC/2,VLOGIC,0)}
+RGH GHS 0 {RDRIVE}
+RGL GLS 0 {RDRIVE}
+.ENDS COMPLEMENTARY_DRIVER
+
+* Enable-aware wrapper for phase shedding. ENABLE=0 forces both gate commands
+* low; it must not be replaced by PWM=0, because PWM=0 commands synchronous
+* low-side conduction. VENHIGH is the asserted enable-signal voltage.
+* COMPLEMENTARY_DRIVER_ENABLE PWM ENABLE GHS GLS
+.SUBCKT COMPLEMENTARY_DRIVER_ENABLE PWM ENABLE GHS GLS PARAMS:
++ VLOGIC=5 VENHIGH=1 DEAD=20n CDEAD=10p RDRIVE=1G
+XCORE PWM GHRAW GLRAW COMPLEMENTARY_DRIVER PARAMS:
++ VLOGIC={VLOGIC} DEAD={DEAD} CDEAD={CDEAD} RDRIVE={RDRIVE}
+EENABLE EN01 0 VALUE={LIMIT(V(ENABLE)/VENHIGH,0,1)}
+EGHEN GHS 0 VALUE={V(GHRAW)*V(EN01)}
+EGLEN GLS 0 VALUE={V(GLRAW)*V(EN01)}
+RGHEN GHS 0 1G
+RGLEN GLS 0 1G
+.ENDS COMPLEMENTARY_DRIVER_ENABLE

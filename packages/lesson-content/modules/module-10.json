@@ -1,0 +1,60 @@
+{
+  "id": "module-10",
+  "number": 10,
+  "title": "Multiphase constant on-time control",
+  "prerequisites": ["module-08", "module-09"],
+  "lessons": [
+    {
+      "id": "10.1",
+      "title": "Free-running, locked, and scheduled phases",
+      "concepts": ["free-running phases", "coordinated phases", "phase scheduling", "phase locking", "master timing reference", "pulse requests", "grants"],
+      "physicalIntuition": "Independent comparators may request pulses at inconvenient times. Coordination can align, defer, or choose phases, trading immediate voltage response against ripple cancellation and fairness.",
+      "mathematicalDerivation": "Define per-phase request guards and a scheduler grant function constrained by eligibility, phase state, and minimum separation. Fixed-spacing locking adds phase-error dynamics; free-running behavior is measured statistically rather than assumed periodic.",
+      "modelingConsequence": "Implement selectable educational schedulers—ideal spacing, first eligible, round robin, minimum separation, current priority, and simplified free running—with request/grant/deny logs.",
+      "assumptions": ["educational behavioral architectures", "not universal commercial implementations"],
+      "citations": ["IEEE-COT4PH-2017", "TI-SLVA882", "INFINEON-APEC03"],
+      "evidenceLabels": ["architecture-specific", "modeling choice"],
+      "interaction": "Multiphase COT scheduler simulator",
+      "transferQuestion": "When would immediate first-eligible grants improve voltage response but worsen output ripple?"
+    },
+    {
+      "id": "10.2",
+      "title": "Collisions, bunching, beats, starvation, and fairness",
+      "concepts": ["pulse collisions", "pulse bunching", "beat behavior", "phase starvation", "minimum pulse separation", "scheduler fairness", "frequency variation by phase"],
+      "physicalIntuition": "Too-close pulses add current slope together; nearly equal free-running frequencies drift in and out of alignment; a greedy scheduler can repeatedly deny one phase.",
+      "mathematicalDerivation": "Define collision as separation below a chosen threshold, bunching by clustered inter-grant intervals, beat signatures from phase-difference drift, starvation by maximum denial/age, and fairness by normalized grant counts or wait times over a stated window.",
+      "modelingConsequence": "Metrics include observation window, eligible-request denominator, and per-phase frequency distribution. Minimum-separation denial must create a visible delayed or dropped request.",
+      "assumptions": ["fairness metric is a declared modeling choice"],
+      "citations": ["IEEE-COT4PH-2017", "TI-SLVA882"],
+      "evidenceLabels": ["derived", "modeling choice"],
+      "interaction": "Scheduler adversarial cases",
+      "transferQuestion": "Design a request sequence that starves phase 3 under a naive current-priority rule and repair the rule."
+    },
+    {
+      "id": "10.3",
+      "title": "Current-balance loops and loop interaction",
+      "concepts": ["average-current balancing", "peak/valley information", "DCR current sensing", "sense mismatch", "current-balance gain", "sharing-loop bandwidth", "voltage-loop interaction"],
+      "physicalIntuition": "A balance loop nudges per-phase demand or timing so one phase does not carry excess current. If it reacts as fast as the main regulator, both loops may fight over the same transient.",
+      "mathematicalDerivation": "Compute each phase's selected current metric relative to the phase average and pass the error through a bandwidth-limited balance compensator. Analyze coupled small-signal paths qualitatively or with a multi-input model; bandwidth separation is a design choice, not a universal ratio.",
+      "modelingConsequence": "The current web challenge displays actual and sensed current trajectories, estimated per-phase peaks, every balance trim, RMS sharing error, normalized primary/share bandwidth references, and a disclosed voltage-interaction proxy. Full voltage commands, coupled multi-input Bode responses, saturation, and total-command conservation remain capstone validation tasks.",
+      "assumptions": ["representative average-share architecture", "temperature prescribed or slowly varied"],
+      "citations": ["INFINEON-APEC03", "TI-SSZTC61"],
+      "evidenceLabels": ["architecture-specific", "heuristic", "modeling choice"],
+      "interaction": "Current-sharing challenge",
+      "transferQuestion": "What waveform evidence suggests the current-share loop is competing with the voltage loop?"
+    },
+    {
+      "id": "10.4",
+      "title": "Large steps, priority, phase shedding, and re-entry",
+      "concepts": ["large load step", "pulse allocation", "round robin", "current priority", "per-phase current limits", "phase shedding", "phase re-entry"],
+      "physicalIntuition": "A large step asks for pulses now, but granting all phases simultaneously sacrifices spacing and can hit limits. Scheduler policy chooses where the stress and droop appear.",
+      "mathematicalDerivation": "Constrain grants by phase current limit, one-shot/min-off timers, separation, and active-phase set. Compare round-robin fairness with current-priority error reduction and add aging/fairness terms to prevent starvation.",
+      "modelingConsequence": "The scheduler lab compares request/grant/drop timing, collisions, delay, allocation fairness, service fairness, a disabled phase, inhibited requests, and timed re-entry. Voltage droop, per-phase current-limit dynamics, threshold hysteresis, soft current handoff, and large-step recovery remain separate PSpice capstone benches rather than outputs of this scheduler-only model.",
+      "assumptions": ["scheduler policies are educational"],
+      "citations": ["TI-SLYT139", "TI-SSZTC61", "IEEE-COT4PH-2017"],
+      "evidenceLabels": ["modeling choice", "architecture-specific"],
+      "interaction": "Exercise scheduler deadline and phase-re-entry policies, then design a large-step pulse-allocation tournament as a PSpice capstone scenario",
+      "transferQuestion": "Which constraint would you relax first for a severe load step, and what new failure mode appears?"
+    }
+  ]
+}

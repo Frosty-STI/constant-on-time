@@ -1,0 +1,14 @@
+Constant On-Time Lab -- isolated current-balancer dynamics
+.INC "pspice/lib/CURRENT_BALANCE.lib"
+* Synthetic 1 V/A current monitors expose the sign and bandwidth directly.
+VI1 I1 0 PWL(0 5 200u 5 201u 6 1m 6)
+VI2 I2 0 PWL(0 5 200u 5 201u 4 1m 4)
+VEN ENABLE 0 1
+XBAL I1 I2 ENABLE TRIM1 TRIM2 ERROR CURRENT_BALANCE_2 PARAMS:
++ BW=2k KBAL=30m TRIMMAX=100m VLOGIC=1
+.OPTIONS RELTOL=1m ABSTOL=10n VNTOL=1u
+.TRAN 100n 1m 0 1u
+.MEAS TRAN ERR_FINAL AVG V(ERROR) FROM=900u TO=1m
+.MEAS TRAN TRIM1_FINAL AVG V(TRIM1) FROM=900u TO=1m
+.PROBE V(I1) V(I2) V(ERROR) V(TRIM1) V(TRIM2)
+.END

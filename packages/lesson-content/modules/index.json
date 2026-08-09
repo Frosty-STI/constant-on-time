@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    "module-00.json", "module-01.json", "module-02.json", "module-03.json",
+    "module-04.json", "module-05.json", "module-06.json", "module-07.json",
+    "module-08.json", "module-09.json", "module-10.json", "module-11.json",
+    "module-12.json"
+  ]
+}
+

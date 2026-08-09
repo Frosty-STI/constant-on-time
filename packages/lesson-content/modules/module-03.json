@@ -1,0 +1,48 @@
+{
+  "id": "module-03",
+  "number": 3,
+  "title": "Dynamic behavior of the buck power stage",
+  "prerequisites": ["module-02"],
+  "lessons": [
+    {
+      "id": "3.1",
+      "title": "Energy exchange, resonance, and damping",
+      "concepts": ["energy storage", "transient response", "LC resonance", "damping", "load dependence", "nonideal plant"],
+      "physicalIntuition": "The inductor and capacitor can exchange energy; resistance and load remove it. A lighter resistive load removes less energy per oscillation and can increase plant peaking.",
+      "mathematicalDerivation": "Linearize the averaged buck state equations and identify the second-order denominator, natural frequency near 1/sqrt(LC), damping terms that include load and parasitics, and the ESR numerator zero.",
+      "modelingConsequence": "The pole-zero explorer recalculates the plant at the selected load and nonidealities. It must not reuse a full-load plant at no load without disclosure.",
+      "assumptions": ["small perturbation about a periodic CCM operating point", "lumped linear elements"],
+      "citations": ["FPE3", "TI-SLVA057", "TI-SLVA301"],
+      "evidenceLabels": ["derived", "approximation"],
+      "interaction": "LC/load/damping explorer",
+      "transferQuestion": "At fixed L and C, predict the Bode peaking change as resistive load increases by 10×."
+    },
+    {
+      "id": "3.2",
+      "title": "Three disturbance paths",
+      "concepts": ["control-to-output", "line-to-output", "output impedance", "power-stage bandwidth ambiguity"],
+      "physicalIntuition": "A control command, input-line movement, and load-current disturbance enter the converter through different physical paths, so one phrase such as 'buck bandwidth' cannot identify all responses.",
+      "mathematicalDerivation": "Perturb duty/control, input voltage, and load current independently in the linearized state equations to obtain Gvd, Gvg, and Zout with other independent inputs set to zero as specified.",
+      "modelingConsequence": "Every analysis panel names excitation and measured output. Replace 'power-stage bandwidth' with LC resonance, a named plant transfer-function feature, or a defined time response.",
+      "assumptions": ["superposition applies only to the linearized model"],
+      "citations": ["FPE3", "TI-SLVA057"],
+      "evidenceLabels": ["exact", "derived"],
+      "interaction": "Transfer-function input/output matcher",
+      "transferQuestion": "Which response predicts initial sensitivity to a small load-current perturbation and what sign convention does it use?"
+    },
+    {
+      "id": "3.3",
+      "title": "Averaged versus switched models",
+      "concepts": ["state-space averaging", "perturbation", "linearization", "switching models", "validity near switching frequency", "CCM/DCM model changes"],
+      "physicalIntuition": "Averaging keeps slow energy motion but erases the pulse train. Linearization additionally keeps only small deviations around one mode and operating point.",
+      "mathematicalDerivation": "Weight state equations by duty for an averaged CCM model, then write x = X + x-hat and discard products of perturbations. In DCM an extra interval/constraint changes the averaged model. Sampling effects become important near switching-related frequencies.",
+      "modelingConsequence": "Never use an averaged result to display jitter, pulse skipping, dead-time current paths, phase collision, or switch-node voltage. Mark AC plots with operating mode and conservative validity limits.",
+      "assumptions": ["time-scale separation", "small-signal perturbation", "fixed conduction mode"],
+      "citations": ["FPE3", "VORPERIAN-CCM", "VORPERIAN-DCM", "BROWN-1981"],
+      "evidenceLabels": ["approximation", "modeling choice"],
+      "interaction": "Averaged/switched side-by-side scenario",
+      "transferQuestion": "Why can the averaged output response be useful while its switch-node trace would be meaningless?"
+    }
+  ]
+}
+

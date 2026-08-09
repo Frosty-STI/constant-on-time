@@ -1,0 +1,60 @@
+{
+  "id": "module-12",
+  "number": 12,
+  "title": "Capstone: configurable multiphase COT model",
+  "prerequisites": ["module-11"],
+  "lessons": [
+    {
+      "id": "12.1",
+      "title": "Build ladder: phase to COT",
+      "concepts": ["ideal buck phase", "nonideal buck phase", "single-phase COT", "ripple generation", "current limiting"],
+      "physicalIntuition": "Validate energy flow first, then add pulse decisions one mechanism at a time so a failure has a small search space.",
+      "mathematicalDerivation": "Gate progression on conversion ratio, state slopes, volt-second/charge balance, nonideal voltage drops, one-shot timing, ripple crossings, and current-limit overshoot bounds.",
+      "modelingConsequence": "Each rung has its own testbench and preserved parameter set. A failed invariant blocks the next rung.",
+      "assumptions": ["generic educational controller", "no proprietary silicon model"],
+      "citations": ["MIT622-L05", "TI-SLVA057", "TI-SLVA546", "CAD-PSPICE-UG"],
+      "evidenceLabels": ["derived", "modeling choice", "validation pending"],
+      "interaction": "Capstone gates 1–5",
+      "transferQuestion": "Which test proves the one-shot works independently of the buck phase?"
+    },
+    {
+      "id": "12.2",
+      "title": "Scale to two and N phases",
+      "concepts": ["two-phase operation", "phase scheduling", "N-phase configurability", "current balancing", "phase shedding"],
+      "physicalIntuition": "Scaling duplicates physical states but introduces coordination and coupled-loop behavior that a single phase cannot reveal.",
+      "mathematicalDerivation": "Generalize the capacitor equation to sum N phase currents, define scheduler invariants and fairness, then add balance and shedding states with explicit bandwidth/hysteresis.",
+      "modelingConsequence": "Generate or instantiate phases with per-phase parameter arrays; never use one shared current state. N-phase symmetry is a test case, not a hard-coded result.",
+      "assumptions": ["scheduler and balance loops are disclosed educational choices"],
+      "citations": ["TI-SLVA882", "INFINEON-APEC03", "IEEE-COT4PH-2017"],
+      "evidenceLabels": ["derived", "architecture-specific", "modeling choice"],
+      "interaction": "Capstone gates 6–10",
+      "transferQuestion": "Which result should remain invariant when identical phases are permuted, and which scheduler trace may change?"
+    },
+    {
+      "id": "12.3",
+      "title": "Timing nonidealities, mismatch, startup, and transients",
+      "concepts": ["propagation delay", "dead time", "min/max timing", "component mismatch", "startup", "line step", "load step", "fault and current limit", "phase re-entry"],
+      "physicalIntuition": "Realistic delay and mismatch reveal whether the architecture depends on perfect simultaneity, perfect sensing, or impossible initial conditions.",
+      "mathematicalDerivation": "Bound expected delay-induced current overshoot, calculate symmetry-breaking trends from L/DCR/sense mismatch, and use energy/charge bounds for startup and load-step sanity checks.",
+      "modelingConsequence": "Run deterministic scenario matrices with explicit initial conditions and seeds. Record actual event times, denied pulses, current limits, phase currents, and output recovery.",
+      "assumptions": ["lumped mismatch and delay", "synthetic faults/noise"],
+      "citations": ["TI-SSZTC61", "TI-SLYT139", "TI-SLVA281", "CAD-PSPICE-UG"],
+      "evidenceLabels": ["derived", "modeling choice", "validation pending"],
+      "interaction": "Capstone gates 11–14",
+      "transferQuestion": "Which mismatch produces equal sensed currents but unequal actual thermal stress?"
+    },
+    {
+      "id": "12.4",
+      "title": "Validation, adversarial review, and explanation",
+      "concepts": ["analytical sanity checks", "conservation", "syntax review", "alternative SPICE", "PSpice execution", "limitations", "artifact diagnosis"],
+      "physicalIntuition": "Validation asks independent questions that a wrong model is unlikely to answer consistently. Tool execution proves execution, not physical truth; analytical agreement proves only the tested relationship.",
+      "mathematicalDerivation": "Check conversion, state slopes, volt-second/charge residuals, boundary behavior, summed-current identity, ideal interleaving, symmetry, and mismatch direction. Compare step/time tolerance sensitivity and preserve tool/version logs.",
+      "modelingConsequence": "Classify each file as syntax-reviewed, alternative-engine cross-checked, or executed in target PSpice. Explain every block's purpose, abstraction, and excluded behavior before sign-off.",
+      "assumptions": ["no claim exceeds the recorded evidence"],
+      "citations": ["FPE3", "BROWN-1981", "CAD-PSPICE-UG", "ADI-AN1144"],
+      "evidenceLabels": ["derived", "validation pending"],
+      "interaction": "Adversarial technical review and oral defense",
+      "transferQuestion": "A waveform matches expected Vo but violates charge balance. Which result do you trust and what do you inspect next?"
+    }
+  ]
+}

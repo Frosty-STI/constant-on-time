@@ -1,0 +1,54 @@
+{
+  "id": "module-00",
+  "number": 0,
+  "title": "Mathematical and circuit prerequisites",
+  "prerequisites": [],
+  "diagnostic": [
+    "Derive the current of an RL step and identify its state variable.",
+    "Identify poles and zeros from a rational transfer function and sketch asymptotic Bode slopes.",
+    "Convert amplitude ratios to dB and distinguish average, RMS, and peak-to-peak.",
+    "Perform one explicit-Euler step and explain local truncation error."
+  ],
+  "lessons": [
+    {
+      "id": "0.1",
+      "title": "State variables and constitutive laws",
+      "concepts": ["differential equations", "state variables", "inductor and capacitor laws", "average, RMS, and ripple"],
+      "physicalIntuition": "Inductor current and capacitor voltage carry memory. Resistors dissipate energy but do not add an independent energy state.",
+      "mathematicalDerivation": "Use vL = L di/dt and iC = C dv/dt with a declared passive sign convention. Integrate over a finite interval and check dimensions. Define average, RMS, and peak-to-peak as different functionals of a waveform.",
+      "modelingConsequence": "The minimum buck state is one current per phase plus a shared capacitor voltage. Terminal output voltage may also include algebraic ESR/ESL terms and must not silently replace the capacitor state.",
+      "assumptions": ["lumped linear L and C unless otherwise stated"],
+      "citations": ["FPE3"],
+      "evidenceLabels": ["exact", "derived"],
+      "interaction": "State-variable sorter and unit checker",
+      "transferQuestion": "If capacitor ESR is added, which quantity remains a dynamic state and which becomes an algebraic terminal-voltage term?"
+    },
+    {
+      "id": "0.2",
+      "title": "Laplace, poles, zeros, and Bode plots",
+      "concepts": ["complex impedance", "Laplace domain", "transfer functions", "poles", "zeros", "decibels", "Bode phase"],
+      "physicalIntuition": "A pole marks stored energy that cannot follow arbitrarily fast; a zero marks a signal path that changes the response numerator. Phase records timing/energy lag in sinusoidal steady state, not a hardware phase branch.",
+      "mathematicalDerivation": "Transform linear differential equations with stated initial conditions, factor numerator and denominator, and derive asymptotic magnitude/phase contributions. Use 20 log10 for amplitude ratios and 10 log10 for power ratios.",
+      "modelingConsequence": "Every plotted transfer function must name input, output, operating point, linearization, units, and phase convention. Numerical pole placement must match the implemented circuit/topology.",
+      "assumptions": ["linear time-invariant small-signal model"],
+      "citations": ["FPE3"],
+      "evidenceLabels": ["exact", "derived"],
+      "interaction": "Pole-zero drag exercise",
+      "transferQuestion": "What changes in the Bode plot if a zero moves from one decade below to one decade above a double pole?"
+    },
+    {
+      "id": "0.3",
+      "title": "Feedback algebra and numerical integration",
+      "concepts": ["negative feedback", "loop gain", "closed-loop response", "Euler integration", "trapezoidal integration", "discontinuities"],
+      "physicalIntuition": "Feedback reuses measured error to oppose disturbance; numerical integration approximates continuous state change with finite steps and can miss an event inside a step.",
+      "mathematicalDerivation": "Derive y/r = G/(1+GH) for the declared negative-feedback signs. Compare explicit Euler x[n+1] = x[n] + h f[n] with trapezoidal integration and show why an unlocated discontinuity breaks smooth-step error assumptions.",
+      "modelingConsequence": "The engine must split or locate switching events, warn when h is coarse relative to pulse width/delay, and never equate a smaller h with physical validation.",
+      "assumptions": ["feedback blocks are compatible and linear for the algebra", "integration formulas apply piecewise between events"],
+      "citations": ["FPE3", "CAD-PSPICE-UG"],
+      "evidenceLabels": ["exact", "approximation", "modeling choice"],
+      "interaction": "Integrator convergence mini-lab",
+      "transferQuestion": "Why can two Euler runs appear converged while both use the wrong switch-state equation?"
+    }
+  ]
+}
+

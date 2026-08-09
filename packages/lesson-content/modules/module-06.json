@@ -1,0 +1,60 @@
+{
+  "id": "module-06",
+  "number": 6,
+  "title": "Peak-current-mode control",
+  "prerequisites": ["module-05"],
+  "lessons": [
+    {
+      "id": "6.1",
+      "title": "Clock, ramp, comparator, and latch",
+      "concepts": ["clocked pulse initiation", "current-sense ramp", "peak comparator", "RS latch", "inner current loop", "outer voltage loop", "current-sense gain", "peak versus valley control"],
+      "physicalIntuition": "A clock starts energy delivery; rising sensed current races a command plus artificial ramp; the crossing ends the pulse. The outer loop moves the command more slowly.",
+      "mathematicalDerivation": "Write sensed voltage as Gcs iL plus offset/filter and artificial ramp. Solve the within-cycle crossing for pulse width under linear slopes, then distinguish peak-trigger/reset ordering from valley-control timing.",
+      "modelingConsequence": "Use explicit latch state, comparator polarity, sense gain/offset, and event ordering. Do not implement pulse width as an algebraic duty formula if demonstrating cycle behavior.",
+      "assumptions": ["linear within-cycle ramps in the introductory model"],
+      "citations": ["MIT622-L27", "TI-SNVA555", "RIDLEY-1991"],
+      "evidenceLabels": ["derived", "modeling choice"],
+      "interaction": "Peak-current pulse animator",
+      "transferQuestion": "What happens to pulse width if current-sense gain rises 10% while the voltage-loop command is momentarily fixed?"
+    },
+    {
+      "id": "6.2",
+      "title": "Cycle-to-cycle perturbations and slope compensation",
+      "concepts": ["slope compensation", "subharmonic behavior", "duty-dependent behavior", "sampled-data effects", "alternating-cycle instability"],
+      "physicalIntuition": "A valley error changes the next peak-crossing time; that timing change changes the following valley. The error may shrink, persist, or alternate/grow from cycle to cycle.",
+      "mathematicalDerivation": "Linearize the discrete peak-to-valley map using the sensed up/down slopes and added ramp. Derive the selected perturbation multiplier and state exactly which current waveform, fixed-frequency timing, and comparator assumptions it uses.",
+      "modelingConsequence": "The exercise renders a single cycle-map-derived current, sense-ramp, and gate timeline; it is not an independently integrated switched-plant trace. It labels the demonstration as incomplete commercial-controller behavior and rejects the slogan that all D > 0.5 cases are automatically unstable.",
+      "assumptions": ["fixed-frequency peak-current control", "linear ramps", "one comparator event per cycle", "selected canonical map"],
+      "citations": ["MIT622-L27", "RIDLEY-1991", "TI-SNVA555"],
+      "evidenceLabels": ["derived", "approximation"],
+      "interaction": "Alternating-cycle then slope-compensation challenge",
+      "transferQuestion": "How does extra artificial slope change both perturbation damping and current-command gain?"
+    },
+    {
+      "id": "6.3",
+      "title": "Blanking, delay, filtering, and current limit",
+      "concepts": ["noise sensitivity", "leading-edge blanking", "propagation delay", "minimum on-time", "minimum off-time", "current limiting", "current-sense filtering", "sense polarity"],
+      "physicalIntuition": "Blanking avoids a false edge spike but temporarily blinds the controller. Delay lets current continue rising after the ideal crossing. Filtering reduces noise and adds lag.",
+      "mathematicalDerivation": "Estimate delay overshoot as Delta i ≈ m_on t_delay and represent a first-order sense filter with its pole. Enforce blanking and min-time inequalities in the event state machine.",
+      "modelingConsequence": "The present exercise logs each clock-set event and the accepted comparator-trip or maximum-on termination. Blanking qualifies or moves the accepted comparator trip; propagation delay then extends the modeled on-time and moves latch reset/gate-off, which is visible here only in the gate width. An ideal pre-blanking crossing and the delayed reset are not emitted as separate events. A fuller PSpice controller should separate ideal crossing, accepted crossing, latch reset, and gate transition when those distinctions matter; protection and regulation comparators may also use different thresholds or delays.",
+      "assumptions": ["constant slope during delay estimate", "simple first-order filter where selected"],
+      "citations": ["TI-SNVA555", "TI-SLVAE22", "RIDLEY-1991"],
+      "evidenceLabels": ["approximation", "architecture-specific", "modeling choice"],
+      "interaction": "Delay/blanking/noise pulse simulator",
+      "transferQuestion": "Why can longer blanking simultaneously reduce nuisance trips and increase peak current?"
+    },
+    {
+      "id": "6.4",
+      "title": "The current-mode plant simplification and its limits",
+      "concepts": ["current-mode power-stage simplification", "sampling gain", "control-to-output", "output impedance", "audio susceptibility"],
+      "physicalIntuition": "At low frequency, tightly programmed current can make the inductor look like a commanded current source to the outer loop, but the physical inductor and sampled switching still exist.",
+      "mathematicalDerivation": "Compare the low-frequency current-source approximation with continuous-time sampled-data-aware models that add high-frequency poles/zeros and duty/ramp dependence.",
+      "modelingConsequence": "This lesson derives the labeled low-frequency approximation and routes the extended sampled-data comparison to the cited sources and PSpice capstone. The present web pulse lab does not plot an extended current-mode Bode model and never claims the LC dynamics vanish universally.",
+      "assumptions": ["simplified model limited to stated low-frequency region and control conditions"],
+      "citations": ["RIDLEY-1991", "TAN-MIDDLEBROOK-1995", "TI-SNVA555"],
+      "evidenceLabels": ["approximation", "advanced"],
+      "interaction": "Guided simplified-versus-extended current-mode model comparison using cited plots and a learner-built PSpice AC exercise",
+      "transferQuestion": "Which omitted behavior becomes visible as frequency approaches a substantial fraction of switching frequency?"
+    }
+  ]
+}

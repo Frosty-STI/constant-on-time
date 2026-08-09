@@ -1,0 +1,60 @@
+{
+  "id": "module-09",
+  "number": 9,
+  "title": "Multiphase buck fundamentals",
+  "prerequisites": ["module-02"],
+  "lessons": [
+    {
+      "id": "9.1",
+      "title": "Parallel phases and interleaving",
+      "concepts": ["parallel power phases", "phase-current summation", "interleaving", "phase displacement", "effective ripple frequency", "per-phase current", "thermal distribution", "phase-count tradeoffs"],
+      "physicalIntuition": "Each phase carries part of the DC load and its own triangular ripple. Timing shifts can make ripples partially cancel at the shared output while switching loss remains tied to each phase's rate.",
+      "mathematicalDerivation": "Sum iL,k and subtract load to obtain capacitor current. For equal-frequency uniform spacing, theta_k = 360 k/N and the summed waveform repeats at Nfs under symmetric conditions; calculate per-phase average near Io/N only when balanced.",
+      "modelingConsequence": "Support 2–8 independent phase states, display individual and summed signals, and separate per-phase fs from effective summed ripple periodicity.",
+      "assumptions": ["ideal spacing relation assumes symmetry and common frequency"],
+      "citations": ["TI-SLVA882", "TI-SLYT139"],
+      "evidenceLabels": ["derived", "approximation"],
+      "interaction": "Multiphase interleaving visualizer",
+      "transferQuestion": "Why can output ripple improve while each phase inductor still has the same peak-to-peak ripple?"
+    },
+    {
+      "id": "9.2",
+      "title": "Input and output ripple cancellation",
+      "concepts": ["input ripple cancellation", "output ripple cancellation", "capacitor RMS", "phase alignment", "duty dependence"],
+      "physicalIntuition": "Input current pulses and output triangular ripples have different shapes, so their cancellation factors and best duty points differ. Misalignment can erase the benefit.",
+      "mathematicalDerivation": "Construct phase-shifted switch/source-current and inductor-ripple waveforms, sum them over a common period, and compute peak-to-peak and RMS rather than assuming a constant 1/N factor.",
+      "modelingConsequence": "The visualizer calculates cancellation from waveforms for the selected duty, offsets, and mismatch. It does not hard-code complete cancellation.",
+      "assumptions": ["common period required for exact periodic RMS; finite-window statistics otherwise"],
+      "citations": ["TI-SLVA882", "TI-SLYT139"],
+      "evidenceLabels": ["derived", "approximation"],
+      "interaction": "Deliberate phase-misalignment sweep",
+      "transferQuestion": "At what kinds of duty values can ideal summed ripple have special cancellation, and why does mismatch spoil it?"
+    },
+    {
+      "id": "9.3",
+      "title": "Mismatch and current sharing",
+      "concepts": ["inductance mismatch", "DCR mismatch", "current-sense mismatch", "timing mismatch", "static current sharing", "dynamic current sharing", "per-phase current limit"],
+      "physicalIntuition": "Equal pulse timing does not equalize voltage drops or sensed current. Small mismatch can shift DC current and peaks, creating thermal feedback and unequal limit margin.",
+      "mathematicalDerivation": "Write each phase's nonideal average voltage balance and sensed current Gk iL,k + offset. Distinguish equal true average current from equal sensed peak/valley and calculate sharing error metrics.",
+      "modelingConsequence": "Every phase exposes L, DCR, switch resistance, sense gain/offset, and timing. Show actual and sensed currents separately.",
+      "assumptions": ["lumped parameter mismatch", "thermal variation prescribed unless a thermal model is enabled"],
+      "citations": ["TI-SSZTC61", "INFINEON-APEC03", "TI-SLVA882"],
+      "evidenceLabels": ["derived", "modeling choice"],
+      "interaction": "Mismatch injection challenge",
+      "transferQuestion": "Can equal sensed current coexist with unequal true current? Construct a gain/offset example."
+    },
+    {
+      "id": "9.4",
+      "title": "Phase shedding, addition, and transient delivery",
+      "concepts": ["phase shedding", "startup sequencing", "phase addition", "phase removal", "transient response", "inductor slew limits", "input/output capacitor implications"],
+      "physicalIntuition": "Fewer phases can reduce switching loss at light load but each active phase works harder. Adding a phase with the wrong initial current/timing can disturb the output.",
+      "mathematicalDerivation": "Compare load demand with active-phase current and slew limits; use separate shed/re-entry thresholds to avoid chatter and define current ramp/soft-entry trajectories.",
+      "modelingConsequence": "The scheduler lab demonstrates a deliberately simple disabled-phase gate and timed re-entry with inhibited requests made visible. A production shedding state machine still needs load thresholds, hysteresis, minimum residency, and a soft phase-current initialization trajectory rather than an instantaneous change in N.",
+      "assumptions": ["educational shedding policy", "switching-loss benefit not transistor-accurate"],
+      "citations": ["TI-SLVA882", "TI-SSZTC61"],
+      "evidenceLabels": ["architecture-specific", "modeling choice"],
+      "interaction": "Scheduler phase-shed/re-entry timing exercise followed by a capstone soft-entry transient",
+      "transferQuestion": "Why should a re-entering phase often ramp its contribution rather than immediately receive a full pulse schedule?"
+    }
+  ]
+}

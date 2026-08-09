@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, agent/initial-build]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+jobs:
+  static-analysis:
+    name: Lint, types, and repository invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate source library and repository hygiene
+        run: npm run verify:static
+      - name: Lint
+        run: npm run lint
+      - name: Type-check
+        run: npm run typecheck
+
+  unit-and-build:
+    name: Unit tests and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run unit and regression tests
+        run: npm test
+      - name: Run simulation-core coverage
+        run: npm run coverage --workspace @constant-on-time/sim-core
+      - name: Run application coverage
+        run: npm run test:unit --workspace @constant-on-time/app
+      - name: Build production application
+        run: npm run build
+      - name: Verify offline production bundle
+        run: npm run check:offline
+      - name: Upload coverage on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-diagnostics
+          path: |
+            app/coverage
+            packages/sim-core/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+  browser:
+    name: Browser, accessibility, and visual tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build production application
+        run: npm run build
+      - name: Run Playwright suite
+        run: npm run test:e2e
+      - name: Upload Playwright diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7

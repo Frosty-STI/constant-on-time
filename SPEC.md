@@ -10,7 +10,7 @@ The project is educational and implementation-oriented. Every major concept is t
 2. mathematical derivation, and
 3. modeling or implementation consequence.
 
-The application title is **Constant On-Time Lab**. The human-readable project name is **Constant On-Time**. The target private GitHub repository is `Frosty-STI/constant-on-time`.
+The application title is **Constant On-Time Lab**. The human-readable project name is **Constant On-Time**. The target private GitHub repository name is `constant-on-time`; the owning account or organization must be established and private visibility verified during authenticated publication. No git remote is currently configured.
 
 ## 2. Boundaries and non-goals
 
@@ -144,7 +144,7 @@ The dependency graph is implemented as modules 0–12:
 11. PSpice modeling methods
 12. progressive capstone
 
-Each lesson contains: objective, prerequisites, intuition, prediction prompt, interactive experiment, derivation, PSpice consequence, transfer question, mastery check, sources, assumptions, and terminology caveats.
+Each structured lesson records a stable ID and title, concept tags, physical intuition, mathematical derivation, modeling consequence, assumptions, evidence labels, citation IDs, an interaction prompt, and a transfer question. Module records carry prerequisites; the application supplies lesson completion, bookmarking, notes, and mastery controls around that content.
 
 ## 6. Required interactive laboratories
 
@@ -168,7 +168,7 @@ The application exposes seventeen named experiences:
 - PSpice block-construction puzzle
 - Broken-model debugging laboratory
 
-Every lab discloses abstraction level, equations, assumptions, included/excluded effects, integration or event method, time resolution, operating range, limitations, and source IDs.
+Each lab definition records its abstraction label, governing equation, assumptions, included and excluded effects, limitations, source IDs, parameter schema, and transfer question. The workbench adds shared numerical-method and assumption panels; lab-specific time resolution and operating-range guidance is disclosed where the implemented model defines it.
 
 ## 7. Numerical engine
 
@@ -201,8 +201,8 @@ i_C = \sum_k i_{L,k} - i_{load}
 ### 7.3 Integration and event handling
 
 - Deterministic fixed-step RK4 is the default educational integrator.
-- Event boundaries (clock edge, one-shot expiration, delay expiration, minimum-off eligibility, load/line step) are inserted into the step schedule so a step does not silently straddle a known event.
-- Comparator crossings use bounded linear interpolation within a step where available.
+- The switched-plant runner splits steps at supplied PWM and load events. Controller cores may expose internal deadlines to an event-driven caller; other decisions occur on the disclosed sample/integration grid.
+- Comparator decisions use the disclosed sample/event grid. No general within-step crossing interpolation is guaranteed unless a specific model implements and tests it.
 - Seeded xorshift or equivalent deterministic PRNG supplies optional noise and mismatch.
 - A warning is required when \(\Delta t\) is too coarse relative to switching period, minimum timing, comparator delay, or injected ripple phase resolution.
 
@@ -221,7 +221,7 @@ Tests cover conversion ratio, current slopes, peak-to-peak ripple, volt-second b
 - Versioned localStorage persistence with JSON import/export/reset
 - Vitest unit/component tests and Playwright browser/visual/accessibility/offline tests
 
-The runtime must make no network request unless the learner explicitly opens a cited source.
+The application must initiate no external data request during normal use. Bundled/same-origin asset and service-worker traffic is allowed; navigation to an external cited source requires an explicit learner action.
 
 ## 9. Local learner data model
 
@@ -263,7 +263,7 @@ Each file is tracked in a compatibility matrix containing intended simulator, sy
 - `sources/bibliography.csv` is the tabular export.
 - Core path contains approximately 10–15 rigorous sources.
 - Extended library contains at least 30 non-padding sources.
-- Significant claims and equations cite stable IDs such as `[SRC-ERICKSON-2020]`.
+- Significant claims and equations cite stable manifest IDs such as `FPE3`.
 - Every entry records access/licensing notes and limitations.
 - Link checking distinguishes reachable, redirected, access-limited, and manually verified sources.
 
@@ -291,6 +291,8 @@ Each file is tracked in a compatibility matrix containing intended simulator, sy
 
 ### Repository
 
+These are publication gates, not a statement of current completion. The current worktree has no git remote, so remote visibility and Actions evidence are unavailable.
+
 - Logical commits on `agent/initial-build`
 - CI for lint, tests, build, link checks, secret scan, dependency audit, browser tests, and offline verification
 - Private visibility verified directly before reporting success
@@ -300,6 +302,8 @@ Each file is tracked in a compatibility matrix containing intended simulator, sy
 
 The work is complete only when the application, source library, curriculum, numerical engine, exercises, PSpice ladder, tests, screenshots, and handoff documentation are present; all feasible local checks pass; repository publication state is verified; and any unavailable Cadence validation is explicitly recorded as outstanding rather than implied.
 
+Current status: the local artifact set and local verification infrastructure are present, but private GitHub publication/visibility, branch push, pull request, remote Actions, merge, and final-main verification remain outstanding. Cadence PSpice execution is also **not run**. See `HANDOFF.md` and `pspice/validation-status.md` for evidence and remaining work.
+
 ## 14. First learner action
 
-The initial lesson is **Module 1.1 — Two switch states, one continuous inductor current** after the Module 0 diagnostic. Its first source is the open-access introductory buck-converter section of Erickson and Maksimović’s *Fundamentals of Power Electronics* materials, with exact section metadata finalized in the verified source manifest.
+The initial lesson is **Module 1.1 — Two switch states, one inductor** after the Module 0 diagnostic. Its first source is **`MIT622-L05` — David J. Perreault, “Lecture 5: Intro to DC/DC, Part 1”**, with the verified public MIT OpenCourseWare link and metadata recorded in the source manifest.

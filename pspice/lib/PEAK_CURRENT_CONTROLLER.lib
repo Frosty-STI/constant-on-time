@@ -1,0 +1,29 @@
+* Constant On-Time Lab -- simplified clock-set, current-reset controller
+* Requires COT_ONESHOT.lib in the calling deck. This is an educational
+* continuous/sampled hybrid, not a transistor- or vendor-level controller.
+
+* PEAK_CURRENT_CONTROLLER CLOCK VCMD ISENSE RAMP BLANK GATE TRIP READY
+* BLANK high suppresses the current comparator. The one-shot supplies the
+* latch-like clock set and maximum-on-time reset behavior.
+.SUBCKT PEAK_CURRENT_CONTROLLER CLOCK VCMD ISENSE RAMP BLANK
++ GATE TRIP READY PARAMS:
++ TMAX=1.8u TOFFMIN=20n VLOGIC=1 VSOFT=1m
+ECMP CMP0 0 VALUE={LIMIT(0.5*VLOGIC*(1+
++ TANH((V(ISENSE)+V(RAMP)-V(VCMD))/VSOFT)),0,VLOGIC)}
+EBLANKOK BLANKOK 0 VALUE={VLOGIC*(1-LIMIT(V(BLANK)/VLOGIC,0,1))}
+ETRIP TRIP 0 VALUE={LIMIT(V(CMP0)*V(BLANKOK)/VLOGIC,0,VLOGIC)}
+XSHOT CLOCK TRIP GATE READY COT_ONESHOT PARAMS:
++ TON={TMAX} TOFFMIN={TOFFMIN} VLOGIC={VLOGIC}
+RTRIP TRIP 0 1G
+.ENDS PEAK_CURRENT_CONTROLLER
+
+* Transconductance outer error amplifier with bounded output command.
+* GM_ERROR_AMP FB REF VCMD
+.SUBCKT GM_ERROR_AMP FB REF VCMD PARAMS:
++ GM=200u CCOMP=100n RLEAK=1MEG VMIN=50m VMAX=2
+GERR 0 COMP VALUE={GM*(V(REF)-V(FB))}
+CCOMP COMP 0 {CCOMP} IC={VMIN}
+RLEAK COMP 0 {RLEAK}
+ECLAMP VCMD 0 VALUE={LIMIT(V(COMP),VMIN,VMAX)}
+RVCMD VCMD 0 1G
+.ENDS GM_ERROR_AMP

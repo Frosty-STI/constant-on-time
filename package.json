@@ -13,7 +13,7 @@
     "dev": "npm run build:sim && npm run dev --workspace @constant-on-time/app",
     "build": "npm run build --workspace @constant-on-time/sim-core && npm run build --workspace @constant-on-time/app",
     "preview": "npm run preview --workspace @constant-on-time/app",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "npm run build:sim && eslint . --max-warnings=0",
     "typecheck": "npm run build:sim && npm run check --workspace @constant-on-time/sim-core && npm run typecheck --workspace @constant-on-time/app",
     "test": "npm run build:sim && npm run test --workspace @constant-on-time/sim-core && npm run test --workspace @constant-on-time/app",
     "test:unit": "npm run build:sim && npm run coverage --workspace @constant-on-time/sim-core && npm run test:unit --workspace @constant-on-time/app",

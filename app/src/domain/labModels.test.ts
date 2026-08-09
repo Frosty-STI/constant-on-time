@@ -83,6 +83,12 @@ describe('interactive laboratory models', () => {
     const ideal = runLab(lab, defaults);
     const misaligned = runLab(lab, { ...defaults, phaseError: 30 });
     expect(ideal.expectedPrediction).toBe(90);
+    expect(ideal.signals.map((signal) => signal.name)).toEqual(['iL1', 'iL2', 'iL3', 'iL4', 'Σ iL']);
+    expect(ideal.supplementalPlots).toHaveLength(1);
+    expect(ideal.supplementalPlots?.[0]?.signals.map((signal) => signal.name)).toEqual([
+      'vSW1', 'vSW2', 'vSW3', 'vSW4', 'iC', 'iIN', 'vOUT',
+    ]);
+    expect(ideal.supplementalPlots?.[0]?.x).toBe(ideal.x);
     const summedRipple = (result: typeof ideal) => Number(result.metrics.find((metric) => metric.label === 'Summed ripple')?.value);
     expect(summedRipple(misaligned)).toBeGreaterThan(summedRipple(ideal));
   });
@@ -92,7 +98,7 @@ describe('interactive laboratory models', () => {
     expect(lab).toBeDefined();
     if (!lab) return;
     const result = runLab(lab, { ...defaultParameters(lab), phases: 4, phaseError: 60, dt: 200 });
-    const capacitor = result.signals.find((signal) => signal.name === 'iC');
+    const capacitor = result.supplementalPlots?.flatMap((plot) => plot.signals).find((signal) => signal.name === 'iC');
     expect(capacitor).toBeDefined();
     if (!capacitor) return;
     let integral = 0;

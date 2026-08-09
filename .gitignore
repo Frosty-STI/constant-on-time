@@ -9,3 +9,5 @@ test-results/
 .vite/
 *.local
 app/public/sw.js
+desktop/build/icon.png
+release/

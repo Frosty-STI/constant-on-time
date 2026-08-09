@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 interface CompensatorDiagramProps {
   readonly topology: number;
   readonly parameters: Readonly<Record<string, number>>;
@@ -7,7 +9,7 @@ const shown = (parameters: Readonly<Record<string, number>>, key: string, fallba
   `${parameters[key] ?? fallback} ${unit}`;
 
 const Resistor = ({ x, y, label, value }: { x: number; y: number; label: string; value: string }) => (
-  <g>
+  <g className="schematic-component resistor">
     <path d={`M${x} ${y}h12l7-8 12 16 12-16 12 16 12-16 7 8h12`} />
     <text x={x + 48} y={y - 13} textAnchor="middle">{label}</text>
     <text x={x + 48} y={y + 25} textAnchor="middle" className="component-value">{value}</text>
@@ -15,68 +17,112 @@ const Resistor = ({ x, y, label, value }: { x: number; y: number; label: string;
 );
 
 const Capacitor = ({ x, y, label, value }: { x: number; y: number; label: string; value: string }) => (
-  <g>
+  <g className="schematic-component capacitor">
     <path d={`M${x} ${y}h18m0-13v26m10-26v26m0-13h18`} />
     <text x={x + 23} y={y - 18} textAnchor="middle">{label}</text>
     <text x={x + 23} y={y + 30} textAnchor="middle" className="component-value">{value}</text>
   </g>
 );
 
+const NumberTag = ({ x, y, value }: { readonly x: number; readonly y: number; readonly value: number }) => (
+  <g className="number-tag">
+    <circle cx={x} cy={y} r="11" />
+    <text x={x} y={y + 3.5} textAnchor="middle">{value}</text>
+  </g>
+);
+
 export const CompensatorDiagram = ({ topology, parameters }: CompensatorDiagramProps) => {
   const typeIII = Math.round(topology) === 3;
+  const idBase = useId().replace(/:/g, '');
+  const sectionTitleId = `${idBase}-compensator-title`;
+  const svgTitleId = `${idBase}-comp-title`;
+  const svgDescriptionId = `${idBase}-comp-description`;
+  const arrowId = `${idBase}-comp-arrow`;
   return (
-    <section className="circuit-panel compensator-panel" aria-labelledby="compensator-title">
-      <div className="section-heading-row">
-        <h3 id="compensator-title">Voltage op-amp {typeIII ? 'Type III' : 'Type II reduction'} · TI SLVA301 Figure 12 mapping</h3>
-        <span>ideal high-open-loop-gain approximation</span>
+    <section className="circuit-panel compensator-panel" aria-labelledby={sectionTitleId}>
+      <div className="circuit-heading">
+        <div>
+          <span className="diagram-kicker">Feedback network · follow the signal left to right</span>
+          <h3 id={sectionTitleId}>Voltage op-amp {typeIII ? 'Type III' : 'Type II reduction'}</h3>
+          <p>TI SLVA301 Figure 12 mapping · ideal high-open-loop-gain approximation</p>
+        </div>
+        <div className="diagram-state-readout compensator-readout">
+          <span>Topology</span>
+          <strong>{typeIII ? 'Two lead pairs' : 'One lead pair'}</strong>
+        </div>
       </div>
-      <svg className="compensator-diagram" viewBox="0 0 760 230" role="img" aria-labelledby="comp-title comp-description">
-        <title id="comp-title">{typeIII ? 'Type III' : 'Type II'} error-amplifier compensation network</title>
-        <desc id="comp-description">The input impedance is R1 in parallel with a Type III R3-C3 series branch. The feedback impedance is C1 in parallel with an R2-C2 series branch. An ideal voltage operational amplifier compares the summing node with VREF.</desc>
+
+      <svg className="compensator-diagram" viewBox="0 0 960 280" role="img" aria-labelledby={`${svgTitleId} ${svgDescriptionId}`}>
+        <title id={svgTitleId}>{typeIII ? 'Type III' : 'Type II'} voltage error-amplifier compensation network</title>
+        <desc id={svgDescriptionId}>VSENSE travels through the input impedance to the op-amp summing node. Two feedback branches connect VCONTROL back to the summing node. The positive input is held at VREF. Numbered regions match the explanation below.</desc>
+        <defs>
+          <marker id={arrowId} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M0 0 10 5 0 10z" fill="#36c7d8" />
+          </marker>
+        </defs>
+
+        <g className="compensator-zones" aria-hidden="true">
+          <rect x="18" y="54" width="330" height="182" rx="6" />
+          <rect x="360" y="14" width="274" height="82" rx="6" />
+          <rect x="360" y="102" width="274" height="134" rx="6" />
+          <rect x="646" y="102" width="296" height="134" rx="6" />
+        </g>
+
         <g className="compensator-static">
-          <text x="20" y="121">VSENSE</text>
-          <path d="M74 116h34M108 116V72h18" />
-          <Resistor x={126} y={72} label="R1" value={shown(parameters, 'r1', 20, 'kΩ')} />
-          <path d="M222 72h82v44h18" />
-          {typeIII ? <>
-            <path d="M108 116v67h20" />
-            <Capacitor x={128} y={183} label="C3" value={shown(parameters, 'c3', 1, 'nF')} />
-            <path d="M174 183h8" />
-            <Resistor x={182} y={183} label="R3" value={shown(parameters, 'r3', 5, 'kΩ')} />
-            <path d="M278 183h26v-67h18" />
-          </> : null}
-          <circle cx="322" cy="116" r="4" className="comp-node" />
-          <text x="284" y="107" className="node-label">SUM</text>
-          <path d="M322 120v14l-8 7 16 11-16 11 16 11-8 7v18" />
-          <path d="M309 199h26m-21 7h16m-11 7h6" />
-          <text x="341" y="170">RBOT</text>
-          <text x="341" y="184" className="component-value">DC divider</text>
-          <path d="M322 116h38" />
-          <path d="M360 82v76l122-38z" className="opamp" />
-          <text x="369" y="112">−</text>
-          <text x="369" y="147">+</text>
-          <path d="M340 143h20M292 143h48" />
-          <text x="238" y="148">VREF</text>
-          <path d="M482 120h238" />
-          <text x="648" y="109">VCONTROL</text>
-          <circle cx="520" cy="120" r="4" className="comp-node" />
+          <text x="30" y="116" className="net-label">VSENSE</text>
+          <path d="M90 110h18" className="signal-entry" markerEnd={`url(#${arrowId})`} />
+          <path d="M108 110V72h20" />
+          <Resistor x={128} y={72} label="R1" value={shown(parameters, 'r1', 20, 'kΩ')} />
+          <path d="M224 72h126v38" />
 
-          <path d="M322 116V30h34" />
-          <Capacitor x={356} y={30} label="C2" value={shown(parameters, 'c2', 2.2, 'nF')} />
-          <path d="M402 30h16" />
-          <Resistor x={418} y={30} label="R2" value={shown(parameters, 'r2', 5, 'kΩ')} />
-          <path d="M514 30h46v90h-40" />
+          {typeIII ? <g className="second-lead-branch">
+            <path d="M108 110v90h20" />
+            <Capacitor x={128} y={200} label="C3" value={shown(parameters, 'c3', 1, 'nF')} />
+            <path d="M174 200h18" />
+            <Resistor x={192} y={200} label="R3" value={shown(parameters, 'r3', 5, 'kΩ')} />
+            <path d="M288 200h62v-90" />
+          </g> : null}
 
-          <path d="M322 116V74h54" />
-          <Capacitor x={376} y={74} label="C1" value={shown(parameters, 'c1', 220, 'pF')} />
-          <path d="M422 74h138v46h-40" />
+          <circle cx="350" cy="110" r="5" className="comp-node" />
+          <text x="306" y="102" className="node-label">SUM</text>
+
+          <path d="M350 114v20l-8 7 16 11-16 11 16 11-8 7v43" />
+          <path d="M337 224h26m-20 7h14m-9 7h4" />
+          <text x="370" y="173">RBOT</text>
+          <text x="370" y="187" className="component-value">DC divider</text>
+
+          <path d="M350 110h70" />
+          <path d="M420 76v108l150-54z" className="opamp" />
+          <text x="430" y="110" className="opamp-input">−</text>
+          <text x="430" y="162" className="opamp-input">+</text>
+          <path d="M370 157h50" />
+          <text x="322" y="162" className="net-label">VREF</text>
+          <path d="M570 130h340" className="control-output" markerEnd={`url(#${arrowId})`} />
+          <text x="822" y="118" className="net-label">VCONTROL</text>
+          <circle cx="610" cy="130" r="5" className="comp-node" />
+
+          <path d="M350 110V48h48" className="feedback-branch" />
+          <Capacitor x={398} y={48} label="C2" value={shown(parameters, 'c2', 2.2, 'nF')} />
+          <path d="M444 48h18" />
+          <Resistor x={462} y={48} label="R2" value={shown(parameters, 'r2', 5, 'kΩ')} />
+          <path d="M558 48h52v82" className="feedback-branch" />
+
+          <path d="M350 110V88h70" className="feedback-branch" />
+          <Capacitor x={420} y={88} label="C1" value={shown(parameters, 'c1', 220, 'pF')} />
+          <path d="M466 88h144v42" className="feedback-branch" />
+
+          <NumberTag x={42} y={92} value={1} />
+          <NumberTag x={378} y={54} value={2} />
+          <NumberTag x={392} y={144} value={3} />
         </g>
       </svg>
-      <div className="compensator-impedances">
-        <code>Zf = C1 ∥ (C2 + R2)</code>
-        <code>Zi = {typeIII ? 'R1 ∥ (C3 + R3)' : 'R1'}</code>
-        <span>RBOT establishes the DC divider and drops out of this ideal AC shape. {typeIII ? 'R3–C3 adds the second lead pair.' : 'R3–C3 is deliberately removed.'}</span>
+
+      <div className="compensator-reading">
+        <div><span>1 · Input network</span><code>Zi = {typeIII ? 'R1 ∥ (C3 + R3)' : 'R1'}</code><p>{typeIII ? 'R3–C3 creates the second lead pair.' : 'R3–C3 is intentionally removed.'}</p></div>
+        <div><span>2 · Feedback network</span><code>Zf = C1 ∥ (C2 + R2)</code><p>Two parallel feedback routes shape the high-frequency response.</p></div>
+        <div><span>3 · Op-amp rule</span><code>V− ≈ V+ = VREF</code><p>Negative feedback drives VCONTROL to hold the summing node near VREF.</p></div>
       </div>
+      <p className="compensator-note">RBOT establishes the DC divider and is not part of this ideal AC transfer-function shape.</p>
     </section>
   );
 };

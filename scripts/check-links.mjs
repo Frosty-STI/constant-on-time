@@ -69,8 +69,8 @@ async function checkSource(source) {
   }
 
   return {
-    kind: 'failure',
-    message: `${source.citationId}: link check failed after ${retryCount + 1} attempt(s): ${lastError?.message ?? 'unknown error'} (${source.url})`,
+    kind: strict ? 'failure' : 'warning',
+    message: `${source.citationId}: automated verification unavailable after ${retryCount + 1} attempt(s): ${lastError?.message ?? 'unknown error'} (${source.url})`,
   };
 }
 

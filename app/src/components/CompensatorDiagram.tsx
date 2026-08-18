@@ -16,11 +16,25 @@ const Resistor = ({ x, y, label, value }: { x: number; y: number; label: string;
   </g>
 );
 
-const Capacitor = ({ x, y, label, value }: { x: number; y: number; label: string; value: string }) => (
+const Capacitor = ({
+  x,
+  y,
+  label,
+  value,
+  labelDx = 0,
+  valueDx = 0,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  value: string;
+  labelDx?: number;
+  valueDx?: number;
+}) => (
   <g className="schematic-component capacitor">
     <path d={`M${x} ${y}h18m0-13v26m10-26v26m0-13h18`} />
-    <text x={x + 23} y={y - 18} textAnchor="middle">{label}</text>
-    <text x={x + 23} y={y + 30} textAnchor="middle" className="component-value">{value}</text>
+    <text x={x + 23 + labelDx} y={y - 18} textAnchor="middle">{label}</text>
+    <text x={x + 23 + valueDx} y={y + 30} textAnchor="middle" className="component-value">{value}</text>
   </g>
 );
 
@@ -108,7 +122,14 @@ export const CompensatorDiagram = ({ topology, parameters }: CompensatorDiagramP
           <path d="M558 48h52v82" className="feedback-branch" />
 
           <path d="M350 110V88h70" className="feedback-branch" />
-          <Capacitor x={420} y={88} label="C1" value={shown(parameters, 'c1', 220, 'pF')} />
+          <Capacitor
+            x={420}
+            y={88}
+            label="C1"
+            value={shown(parameters, 'c1', 220, 'pF')}
+            labelDx={28}
+            valueDx={28}
+          />
           <path d="M466 88h144v42" className="feedback-branch" />
 
           <NumberTag x={42} y={92} value={1} />

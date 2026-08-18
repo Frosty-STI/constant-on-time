@@ -15,6 +15,8 @@ describe('CompensatorDiagram', () => {
     expect(view.getByText('C3', { selector: 'text' })).toBeInTheDocument();
     expect(view.getByText('R3', { selector: 'text' })).toBeInTheDocument();
     expect(container.querySelector('.signal-entry')).toHaveAttribute('d', 'M90 110h18');
+    expect(view.getByText('C1', { selector: 'text' })).toHaveAttribute('x', '471');
+    expect(view.getByText('220 pF', { selector: 'text' })).toHaveAttribute('x', '471');
   });
 
   it('removes the second lead branch in the Type II reduction', () => {

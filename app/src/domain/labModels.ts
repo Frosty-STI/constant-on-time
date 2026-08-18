@@ -1227,11 +1227,16 @@ const interleavingLab = (parameters: Readonly<Record<string, number>>, seed: num
     return ((phase / point.phases + signed) % 1 + 1) % 1;
   }).sort((a, b) => a - b);
   const spacings = normalizedOffsets.map((offset, index) => (((normalizedOffsets[(index + 1) % point.phases] ?? offset) - offset + 1) % 1) * 360);
+  const phaseEvents: LabEvent[] = currents.flatMap((_, phase) => {
+    const raw = (phase / point.phases + phaseError / 360 * (phase % 2 === 0 ? 1 : -1)) * point.period;
+    const wrapped = ((raw % point.period) + point.period) % point.period;
+    return [{ x: wrapped, label: `phase ${phase + 1}`, phase, kind: 'edge' as const }];
+  }).sort((a, b) => a.x - b.x || (a.phase ?? 0) - (b.phase ?? 0));
   return {
     x,
     xLabel: 'Time',
     xUnit: 's',
-    signals: [...currents, ...switchNodes, sum, capCurrent, inputCurrent, outputVoltage],
+    signals: [...currents, sum],
     metrics: [
       { label: 'Ideal spacing', value: idealSpacing, unit: 'deg' },
       { label: 'Applied timing error', value: phaseError, unit: 'deg', tone: phaseError === 0 ? 'good' : 'warning' },
@@ -1246,11 +1251,7 @@ const interleavingLab = (parameters: Readonly<Record<string, number>>, seed: num
       { label: 'Output-voltage ripple', value: outputPp, unit: 'V' },
       { label: 'Nominal interleaved event rate', value: effectiveRippleFrequency(point.fs, point.phases), unit: 'Hz' },
     ],
-    events: currents.flatMap((_, phase) => {
-      const raw = (phase / point.phases + phaseError / 360 * (phase % 2 === 0 ? 1 : -1)) * point.period;
-      const wrapped = ((raw % point.period) + point.period) % point.period;
-      return [{ x: wrapped, label: `phase ${phase + 1}`, phase, kind: 'edge' as const }];
-    }).sort((a, b) => a.x - b.x || (a.phase ?? 0) - (b.phase ?? 0)),
+    events: phaseEvents,
     expectedPrediction: idealSpacing,
     predictionTolerance: 1,
     summary: `With uniform ${idealSpacing.toFixed(1)}° spacing, switching edges repeat at the nominal ${formatEngineering(point.fs * point.phases, 'Hz')} interleaved event rate; the dominant residual-ripple harmonic still depends on duty, alignment, and matching.`,
@@ -1259,6 +1260,15 @@ const interleavingLab = (parameters: Readonly<Record<string, number>>, seed: num
       ...simulation.warnings,
       ...(Math.abs(phaseError) > idealSpacing * 0.25 ? ['Large timing error deliberately degrades cancellation and may bunch edges.'] : []),
     ],
+    supplementalPlots: [{
+      title: 'Switching details and filter response',
+      disclosure: 'These traces come from the same switched simulation and time axis. They are separated so the phase-current cancellation in the primary scope remains easy to read.',
+      x,
+      xLabel: 'Time',
+      xUnit: 's',
+      signals: [...switchNodes, capCurrent, inputCurrent, outputVoltage],
+      events: phaseEvents,
+    }],
     seed,
   };
 };

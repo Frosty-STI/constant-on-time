@@ -17,6 +17,18 @@ const buildExpected = (architecture: number): string[] => {
   return blocks;
 };
 
+const blockPurpose: Readonly<Record<string, string>> = {
+  'Feedback divider': 'Scale VOUT for comparison',
+  'Servo signal': 'Correct slow DC error',
+  'Ripple sum': 'Add the switching ramp',
+  Comparator: 'Create a pulse request',
+  'Minimum off-time gate': 'Decide pulse eligibility',
+  'Phase scheduler': 'Choose the next phase',
+  'One-shot': 'Set the constant on-time',
+  'Buck phase': 'Switch energy into L',
+  'Current sense': 'Measure phase current',
+};
+
 export const BlockPuzzle = ({ architecture, includeCurrentLimit, includeBalance, includeShedding }: BlockPuzzleProps) => {
   const expected = useMemo(() => buildExpected(architecture), [architecture]);
   const parallelBlocks = useMemo(() => [
@@ -68,29 +80,41 @@ export const BlockPuzzle = ({ architecture, includeCurrentLimit, includeBalance,
   return (
     <section className="block-puzzle" aria-labelledby="block-puzzle-title">
       <div className="section-heading-row">
-        <div><h3 id="block-puzzle-title">PSpice behavioral block construction</h3><p>Arrange one valid signal-flow order. Parallel protective and balancing paths are discussed after reveal.</p></div>
+        <div><span className="diagram-kicker">Control architecture · build left to right</span><h3 id="block-puzzle-title">PSpice behavioral block construction</h3><p>Arrange one valid signal-flow order. Each block states the job it performs.</p></div>
         <button type="button" onClick={shuffle}><Shuffle aria-hidden="true" />Shuffle</button>
       </div>
-      <ol className="block-flow">
-        {order.map((block, index) => (
-          <li key={block} className={revealed ? (block === expected[index] ? 'correct' : 'wrong') : ''}>
-            <span>{index + 1}</span>
-            <strong>{block}</strong>
-            <div>
-              <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move ${block} left`}><ArrowLeft aria-hidden="true" /></button>
-              <button type="button" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label={`Move ${block} right`}><ArrowRight aria-hidden="true" /></button>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <div className="block-flow-legend" aria-label="Signal-flow reading order"><span>MEASURE</span><i aria-hidden="true" /><span>DECIDE</span><i aria-hidden="true" /><span>TIME</span><i aria-hidden="true" /><span>SWITCH</span><i aria-hidden="true" /><span>FEEDBACK</span></div>
+      <div className="block-flow-shell">
+        <p className="block-scroll-hint"><span>Stages 1–{order.length}</span>Scroll horizontally to inspect every block <ArrowRight aria-hidden="true" /></p>
+        <ol className="block-flow" aria-label={`${order.length}-stage control signal flow`}>
+          {order.map((block, index) => (
+            <li key={block} className={revealed ? (block === expected[index] ? 'correct' : 'wrong') : ''}>
+              <span className="block-step">STEP {index + 1} OF {order.length}</span>
+              <strong>{block}</strong>
+              <small>{blockPurpose[block]}</small>
+              <div>
+                <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move ${block} left`}><ArrowLeft aria-hidden="true" /></button>
+                <button type="button" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label={`Move ${block} right`}><ArrowRight aria-hidden="true" /></button>
+              </div>
+              {index < order.length - 1 ? <ArrowRight className="block-connector" aria-hidden="true" /> : null}
+            </li>
+          ))}
+        </ol>
+      </div>
       <div className="block-puzzle-actions">
         <button type="button" className="primary-button" onClick={() => setRevealed(true)}><Eye aria-hidden="true" />Check connections</button>
-        {revealed ? <p className={valid ? 'success' : 'needs-work'}>{valid ? <><CheckCircle2 aria-hidden="true" />This is one valid educational implementation.</> : 'The sequence still violates a request, eligibility, one-shot, or sense-loop dependency.'}</p> : null}
+        <p className={revealed ? (valid ? 'success' : 'needs-work') : 'unchecked'} role="status" aria-live="polite">
+          {revealed
+            ? valid
+              ? <><CheckCircle2 aria-hidden="true" />Arrangement valid: this is one educational implementation.</>
+              : 'Arrangement needs work: a request, eligibility, one-shot, or sense-loop dependency is out of order.'
+            : 'Arrangement status: unchecked.'}
+        </p>
       </div>
       {revealed ? (
         <details open>
           <summary>Reveal one valid implementation</summary>
-          <div className="valid-flow">{expected.map((block, index) => <span key={block}>{block}{index < expected.length - 1 ? ' →' : ''}</span>)}</div>
+          <div className="valid-flow">{expected.map((block, index) => <span key={block}>{block}{index < expected.length - 1 ? <ArrowRight aria-hidden="true" /> : null}</span>)}</div>
           {parallelBlocks.length > 0 ? <div className="parallel-flow"><strong>Parallel control paths:</strong> {parallelBlocks.join(' · ')}</div> : null}
           <p>Current limit may inhibit or reset a pulse in parallel. Current balancing and phase shedding act more slowly on phase commands/enables; they are not simply inserted into the fast comparator chain in every architecture.</p>
         </details>

@@ -26,9 +26,11 @@ test('runs the predict-simulate-explain workflow', async ({ page }) => {
 test('navigates every required lab and rejects impossible input', async ({ page, browserName }) => {
   test.setTimeout(120_000);
   test.skip(browserName !== 'chromium', 'Chromium is the configured offline QA engine.');
-  if ((page.viewportSize()?.width ?? 1440) <= 1100) {
-    await page.getByRole('button', { name: 'Toggle curriculum' }).click();
-  }
+  const compactNavigation = (page.viewportSize()?.width ?? 1440) <= 1100;
+  const selectLab = async (label: string) => {
+    if (compactNavigation) await page.getByRole('button', { name: 'Toggle curriculum' }).click();
+    await page.getByRole('button', { name: label, exact: true }).click();
+  };
   const labs = [
     ['Current paths', 'Current-Path Puzzle'], ['Inductor ripple', 'Inductor Ripple Sandbox'], ['Output ripple', 'Capacitor and Output-Ripple Sandbox'],
     ['CCM / DCM', 'CCM/DCM Waveform Identification'], ['Operating point', 'Buck Operating-Point Designer'], ['Pole / zero', 'Pole-and-Zero Explorer'],
@@ -38,10 +40,10 @@ test('navigates every required lab and rejects impossible input', async ({ page,
     ['PSpice blocks', 'PSpice Block-Construction Puzzle'], ['Debugging lab', 'Broken-Model Debugging Laboratory'],
   ] as const;
   for (const [label, title] of labs) {
-    await page.getByRole('button', { name: label, exact: true }).click({ force: true });
+    await selectLab(label);
     await expect(page.locator('.workbench-header h2')).toHaveText(title);
   }
-  await page.getByRole('button', { name: 'Inductor ripple', exact: true }).click();
+  await selectLab('Inductor ripple');
   await page.getByLabel('Output target').fill('20');
   await expect(page.getByRole('alert')).toContainText(/below input/i);
   await expect(page.getByRole('button', { name: 'Run simulation' })).toBeDisabled();

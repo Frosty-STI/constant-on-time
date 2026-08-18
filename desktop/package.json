@@ -1,0 +1,61 @@
+{
+  "name": "@constant-on-time/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hardened Windows desktop shell for Constant On-Time Lab.",
+  "author": "Frosty-STI",
+  "main": "main.cjs",
+  "scripts": {
+    "icon": "electron scripts/render-icon.cjs",
+    "test": "node --test",
+    "audit": "npm audit --audit-level=high",
+    "smoke": "node scripts/smoke.mjs --runtime",
+    "smoke:exe": "node scripts/smoke.mjs --exe",
+    "predist": "npm run icon",
+    "dist": "electron-builder --win portable --x64 --publish never"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "electron": "43.3.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.frostysti.constantontimelab",
+    "productName": "Constant On-Time Lab",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "main.cjs",
+      "security.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../app/dist",
+        "to": "app-dist",
+        "filter": [
+          "**/*",
+          "!**/*.map"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Constant-On-Time-Lab-${version}-portable-${arch}.${ext}"
+    }
+  }
+}

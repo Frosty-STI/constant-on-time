@@ -89,6 +89,15 @@ Icons are thin outline symbols, 1.75–2 px stroke, square-capped or modestly ro
 - Waveform hover/cursor is code-native and reports exact simulation data.
 - Scope controls sit in a compact lower toolbar, not over the data.
 
+## Schematic teaching grammar
+
+- Read power stages left-to-right as source → switching phases → energy storage → shared output → load.
+- A multiphase label requires explicit parallel phase lanes. Up to three complete lanes are drawn; larger phase counts retain three representative lanes plus an exact additional-branch count and a complete timing-offset strip.
+- Every conduction view combines device ON/OFF text, arrow direction, line treatment, and a plain-language route. Color alone is never the state explanation.
+- High-side, low-side, dead-time, reverse-current, diode-emulation, and startup views name the current route and pair it with the inductor-voltage/current response.
+- Compensation and behavioral-control diagrams use numbered regions and short purpose labels so learners can move from topology to signal flow without decoding decoration.
+- External presentation references and the decisions derived from them are recorded in [`docs/design/SCHEMATIC_REFERENCE_NOTES.md`](docs/design/SCHEMATIC_REFERENCE_NOTES.md); technical truth remains code-, source-, and test-governed.
+
 ## Motion
 
 - Current-path animation uses a restrained moving dash or point flow.
@@ -166,12 +175,13 @@ Compared artifacts:
 
 ### Visual QA record
 
-The cloud browser could not load the local preview and returned `ERR_BLOCKED_BY_CLIENT`, so browser verification used the documented fallback: regular Playwright with a locally bundled Chromium executable. Desktop (1440 × 1024) and tablet (1024 × 768) screenshots were captured only after the simulation worker completed and the plot became visible. The final matrix listed 50 project cases: 33 passed, 17 desktop-only per-lab visual captures were intentionally skipped in the tablet project, and none failed. The browser suite checks navigation, prediction/reveal, strict invalid-input handling, local persistence, JSON/CSV downloads, sweep and comparison workflows, offline reload, keyboard focus, zero unexpected runtime requests, and Axe violations.
+Interactive semantic QA used the in-app Browser against the live local application. Exact CI-rendered baselines were then regenerated with the repository's Playwright/Chromium setup at 1440 × 1024 and 1024 × 768 after each simulation worker completed and its plot became visible. The final matrix contains 50 project cases: 33 pass and 17 desktop-only per-lab captures are intentionally skipped in the tablet project. The browser suite checks navigation, prediction/reveal, strict invalid-input handling, local persistence, JSON/CSV downloads, sweep and comparison workflows, offline reload, keyboard focus, zero unexpected runtime requests, and Axe violations.
 
 Manual original-resolution review confirmed:
 
 - plot axes state quantity and SI/engineering units;
 - phase lines remain distinguishable by color, label, marker, and dash;
+- the interleaving primary scope emphasizes phase and summed currents while secondary switch/filter signals remain in a clearly labeled companion scope;
 - legends and cursor readouts match displayed arrays;
 - the diagram does not clip at either verified viewport;
 - the desktop inspector does not obscure the workbench;

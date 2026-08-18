@@ -36,7 +36,7 @@ const SupplementalScope = ({ plot }: { readonly plot: SupplementalPlot }) => {
   return (
     <section className="supplemental-scope" data-testid="supplemental-scope" aria-label={plot.title}>
       <div className="model-boundary-note" role="note">
-        <strong>Separate model boundary</strong>
+        <strong>Companion scope</strong>
         <p>{plot.disclosure}</p>
       </div>
       <ScopePlot result={plot} cursorIndex={cursorIndex} onCursorIndexChange={setCursorIndex} title={plot.title} testId="supplemental-scope-plot" />
@@ -140,6 +140,8 @@ export const LabWorkbench = ({ lab, progress, onSetMastery, onRecordPrediction, 
             phaseCount={phaseCount}
             activeState={activeState}
             inductorCurrent={parameters.current ?? parameters.load ?? 1}
+            inputVoltage={parameters.vin ?? 12}
+            outputVoltage={parameters.vout ?? 5}
             running={playback.running}
             revealed={hasRun}
             onStateChange={(state) => {

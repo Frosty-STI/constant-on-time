@@ -52,11 +52,16 @@ export default function App() {
     return Math.round(keys.reduce((sum, key) => sum + masteryWeight(progress.conceptMastery[key]), 0) / keys.length * 100);
   }, [progress.conceptMastery]);
 
+  const closeResponsiveRail = useCallback(() => {
+    if (window.matchMedia('(max-width: 1100px)').matches) setRailCollapsed(false);
+  }, []);
+
   const selectLab = useCallback((id: LabId) => {
     setActiveLabId(id);
     setActiveModule(null);
     setNotice('');
-  }, []);
+    closeResponsiveRail();
+  }, [closeResponsiveRail]);
 
   const importProgress = useCallback(async (file: File) => {
     try {
@@ -91,7 +96,7 @@ export default function App() {
         activeModule={activeModule}
         progress={progress}
         onSelectLab={selectLab}
-        onSelectModule={(moduleIndex) => { setActiveModule(moduleIndex); setNotice(''); }}
+        onSelectModule={(moduleIndex) => { setActiveModule(moduleIndex); setNotice(''); closeResponsiveRail(); }}
         onToggleNotes={() => setNotesOpen((current) => !current)}
       />
       <div className="app-content">
